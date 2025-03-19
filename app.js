@@ -329,7 +329,7 @@ async function fetchAvailableTeams() {
 async function fetchPreviousPicks() {
   try {
     // In a real app, get this from your API
-    // For the MVP, we'll use local storage
+    // For the MVP, we'll use local storage but with user-specific key
     const storedPicks = localStorage.getItem(`picks_${currentUser.email}`);
     previousPicks = storedPicks ? JSON.parse(storedPicks) : [];
     
@@ -677,6 +677,10 @@ function editPicks(pickId) {
   // Update UI to show editing mode
   submitPicksBtn.textContent = 'Update Picks';
   
+  // Remove any existing editing alerts
+  const existingAlerts = document.querySelectorAll('.alert-warning');
+  existingAlerts.forEach(alert => alert.remove());
+  
   // Show alert that we're editing
   const alertDiv = document.createElement('div');
   alertDiv.className = 'alert alert-warning alert-dismissible fade show mt-3';
@@ -729,7 +733,8 @@ async function handleSubmitPicks(e) {
         id: Date.now(),
         day: currentDay,
         date: new Date().toISOString(),
-        teams: selectedTeams
+        teams: selectedTeams,
+        userEmail: currentUser.email // Add user email to the pick object
       };
       
       previousPicks.push(newPick);
