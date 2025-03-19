@@ -430,7 +430,13 @@ function renderAvailableTeams() {
       item.classList.add('active');
     }
     item.textContent = `${team.seed}. ${team.name} (${team.region})`;
-    item.onclick = () => toggleTeamSelection(team)
+    item.onclick = () => toggleTeamSelection(team);
+    teamsList.appendChild(item);
+  });
+  
+  availableTeamsDiv.appendChild(teamsList);
+  renderSelectedTeams();
+}
 
 function renderSelectedTeams() {
   selectedTeamsDiv.innerHTML = '';
