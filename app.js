@@ -417,6 +417,7 @@ function renderAvailableTeams() {
   if (availableTeams.length === 0) {
     availableTeamsDiv.innerHTML = '<p class="text-muted">No teams available</p>';
     return;
+  }
   
   const teamsList = document.createElement('div');
   teamsList.className = 'list-group';
@@ -429,13 +430,7 @@ function renderAvailableTeams() {
       item.classList.add('active');
     }
     item.textContent = `${team.seed}. ${team.name} (${team.region})`;
-    item.onclick = () => toggleTeamSelection(team);
-    teamsList.appendChild(item);
-  });
-  
-  availableTeamsDiv.appendChild(teamsList);
-  renderSelectedTeams();
-}
+    item.onclick = () => toggleTeamSelection(team)
 
 function renderSelectedTeams() {
   selectedTeamsDiv.innerHTML = '';
