@@ -1,4 +1,4 @@
-// Serverless API for March Madness Knockout Pool
+// api/index.js - Complete API implementation with MongoDB
 const { MongoClient, ObjectId } = require('mongodb');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
@@ -115,7 +115,7 @@ module.exports = async (req, res) => {
       
       // Generate JWT token
       const token = jwt.sign(
-        { userId: user._id, email: user.email, isAdmin: admin },
+        { userId: user._id.toString(), email: user.email, isAdmin: admin },
         process.env.JWT_SECRET,
         { expiresIn: '24h' }
       );
@@ -144,94 +144,233 @@ module.exports = async (req, res) => {
           return res.status(404).json({ message: 'User not found' });
         }
         
+        // Add isAdmin flag
+        user.isAdmin = await isAdmin(db, user.email);
+        
         return res.status(200).json(user);
       } catch (error) {
         return res.status(401).json({ message: 'Unauthorized' });
       }
     }
     
-    // Get or submit picks
-    if (path.startsWith('/picks')) {
+    // Teams API
+    if (path === '/teams' && req.method === 'GET') {
+      try {
+        verifyToken(req);
+        
+        // Get all teams
+        const teams = await db.collection('teams').find({}).toArray();
+        
+        // If no teams exist yet, create default teams
+        if (teams.length === 0) {
+          const defaultTeams = [
+            { name: 'Duke', seed: 1, region: 'East', record: '31-3' },
+            { name: 'Alabama', seed: 2, region: 'East', record: '25-8' },
+            { name: 'Wisconsin', seed: 3, region: 'East', record: '26-9' },
+            { name: 'Houston', seed: 1, region: 'South', record: '30-4' },
+            { name: 'Tennessee', seed: 2, region: 'South', record: '27-7' },
+            { name: 'Florida', seed: 1, region: 'West', record: '30-4' },
+            { name: 'St. John\'s', seed: 2, region: 'West', record: '30-4' },
+            { name: 'Auburn', seed: 1, region: 'Midwest', record: '28-5' },
+            { name: 'Michigan State', seed: 2, region: 'Midwest', record: '27-6' },
+            { name: 'Iowa State', seed: 3, region: 'Midwest', record: '24-9' },
+            { name: 'Texas A&M', seed: 4, region: 'Midwest', record: '22-10' },
+            { name: 'Michigan', seed: 5, region: 'Midwest', record: '25-9' },
+            { name: 'Ole Miss', seed: 6, region: 'Midwest', record: '22-11' },
+            { name: 'Marquette', seed: 7, region: 'Midwest', record: '23-10' },
+            { name: 'Louisville', seed: 8, region: 'Midwest', record: '27-7' },
+            { name: 'Creighton', seed: 9, region: 'Midwest', record: '24-10' }
+          ];
+          
+          await db.collection('teams').insertMany(defaultTeams);
+          return res.status(200).json({ teams: defaultTeams });
+        }
+        
+        return res.status(200).json({ teams });
+      } catch (error) {
+        return res.status(401).json({ message: 'Unauthorized' });
+      }
+    }
+    
+    // Get available teams for a user
+    if (path === '/teams/available' && req.method === 'GET') {
+      try {
+        const decoded = verifyToken(req);
+        
+        // Get all teams
+        const allTeams = await db.collection('teams').find({}).toArray();
+        
+        // Get user's previous picks
+        const userPicks = await db.collection('picks').find({
+          userEmail: decoded.email
+        }).toArray();
+        
+        // Get IDs of teams already used
+        const usedTeamIds = [];
+        userPicks.forEach(pick => {
+          pick.teams.forEach(team => {
+            usedTeamIds.push(team._id.toString());
+          });
+        });
+        
+        // Filter out used teams
+        const availableTeams = allTeams.filter(team => 
+          !usedTeamIds.includes(team._id.toString())
+        );
+        
+        return res.status(200).json({ teams: availableTeams });
+      } catch (error) {
+        return res.status(401).json({ message: 'Unauthorized' });
+      }
+    }
+    
+    // Get user's picks
+    if (path === '/picks' && req.method === 'GET') {
       try {
         const decoded = verifyToken(req);
         
         // Get user's picks
-        if (path === '/picks' && req.method === 'GET') {
-          const picks = await db.collection('picks').find({
-            userEmail: decoded.email
-          }).toArray();
-          
-          return res.status(200).json({ picks });
-        }
+        const picks = await db.collection('picks').find({
+          userEmail: decoded.email
+        }).toArray();
         
-        // Submit new picks
-        if (path === '/picks/submit' && req.method === 'POST') {
-          const { teams, day } = req.body;
-          
-          if (!teams || !day) {
-            return res.status(400).json({ message: 'Teams and day are required' });
-          }
-          
-          // Validate team selection
-          // In a real app, you'd verify teams are available and valid
-          
-          // Save picks
-          const result = await db.collection('picks').insertOne({
-            userEmail: decoded.email,
-            teams,
-            day,
-            date: new Date(),
-            successful: null // null = pending, true = won, false = lost
-          });
-          
-          return res.status(201).json({ 
-            message: 'Picks submitted successfully',
-            pickId: result.insertedId
-          });
-        }
-        
-        // Update existing picks
-        if (path === '/picks/update' && req.method === 'PUT') {
-          const { pickId, teams } = req.body;
-          
-          if (!pickId || !teams) {
-            return res.status(400).json({ message: 'Pick ID and teams are required' });
-          }
-          
-          // Find the pick and verify ownership
-          const pick = await db.collection('picks').findOne({
-            _id: new ObjectId(pickId)
-          });
-          
-          if (!pick) {
-            return res.status(404).json({ message: 'Pick not found' });
-          }
-          
-          if (pick.userEmail !== decoded.email) {
-            return res.status(403).json({ message: 'Not authorized to edit this pick' });
-          }
-          
-          // Update the pick
-          await db.collection('picks').updateOne(
-            { _id: new ObjectId(pickId) },
-            { 
-              $set: { 
-                teams: teams,
-                date: new Date() 
-              } 
-            }
-          );
-          
-          return res.status(200).json({ message: 'Pick updated successfully' });
-        }
+        return res.status(200).json({ picks });
       } catch (error) {
-        return res.status(401).json({ message: 'Unauthorized', error: error.message });
+        return res.status(401).json({ message: 'Unauthorized' });
+      }
+    }
+    
+    // Submit new picks
+    if (path === '/picks/submit' && req.method === 'POST') {
+      try {
+        const decoded = verifyToken(req);
+        const { teams, day } = req.body;
+        
+        if (!teams || !day || !Array.isArray(teams)) {
+          return res.status(400).json({ message: 'Teams array and day are required' });
+        }
+        
+        // Get current pool settings
+        const settings = await db.collection('poolSettings').findOne({}, {
+          sort: { _id: -1 }
+        });
+        
+        const requiredPicks = settings ? settings.requiredPicks : 2;
+        
+        // Validate number of teams
+        if (teams.length !== requiredPicks) {
+          return res.status(400).json({ 
+            message: `You must select exactly ${requiredPicks} teams for ${day}`
+          });
+        }
+        
+        // Insert the picks
+        const result = await db.collection('picks').insertOne({
+          userEmail: decoded.email,
+          teams,
+          day,
+          date: new Date(),
+          successful: null // null = pending, true = won, false = lost
+        });
+        
+        return res.status(201).json({ 
+          message: 'Picks submitted successfully',
+          pickId: result.insertedId
+        });
+      } catch (error) {
+        console.error('Error submitting picks:', error);
+        return res.status(error.statusCode || 500).json({ 
+          message: 'Failed to submit picks', 
+          error: error.message 
+        });
+      }
+    }
+    
+    // Update existing picks
+    if (path === '/picks/update' && req.method === 'PUT') {
+      try {
+        const decoded = verifyToken(req);
+        const { pickId, teams } = req.body;
+        
+        if (!pickId || !teams || !Array.isArray(teams)) {
+          return res.status(400).json({ message: 'Pick ID and teams array are required' });
+        }
+        
+        // Find the pick and verify ownership
+        const pick = await db.collection('picks').findOne({
+          _id: new ObjectId(pickId)
+        });
+        
+        if (!pick) {
+          return res.status(404).json({ message: 'Pick not found' });
+        }
+        
+        if (pick.userEmail !== decoded.email) {
+          return res.status(403).json({ message: 'Not authorized to edit this pick' });
+        }
+        
+        // Get current pool settings
+        const settings = await db.collection('poolSettings').findOne({}, {
+          sort: { _id: -1 }
+        });
+        
+        const requiredPicks = settings ? settings.requiredPicks : 2;
+        
+        // Validate number of teams
+        if (teams.length !== requiredPicks) {
+          return res.status(400).json({ 
+            message: `You must select exactly ${requiredPicks} teams`
+          });
+        }
+        
+        // Update the pick
+        await db.collection('picks').updateOne(
+          { _id: new ObjectId(pickId) },
+          { 
+            $set: { 
+              teams: teams,
+              date: new Date() 
+            } 
+          }
+        );
+        
+        return res.status(200).json({ message: 'Pick updated successfully' });
+      } catch (error) {
+        return res.status(500).json({ message: 'Failed to update pick', error: error.message });
+      }
+    }
+    
+    // Delete a pick
+    if (path.startsWith('/picks/delete') && req.method === 'DELETE') {
+      try {
+        const decoded = verifyToken(req);
+        const pickId = path.split('/').pop();
+        
+        // Find the pick and verify ownership
+        const pick = await db.collection('picks').findOne({
+          _id: new ObjectId(pickId)
+        });
+        
+        if (!pick) {
+          return res.status(404).json({ message: 'Pick not found' });
+        }
+        
+        if (pick.userEmail !== decoded.email && !decoded.isAdmin) {
+          return res.status(403).json({ message: 'Not authorized to delete this pick' });
+        }
+        
+        // Delete the pick
+        await db.collection('picks').deleteOne({ _id: new ObjectId(pickId) });
+        
+        return res.status(200).json({ message: 'Pick deleted successfully' });
+      } catch (error) {
+        return res.status(500).json({ message: 'Failed to delete pick', error: error.message });
       }
     }
     
     // ADMIN ROUTES
     
-    // Get all users
+    // Get all users (admin only)
     if (path === '/admin/users' && req.method === 'GET') {
       try {
         const decoded = verifyToken(req);
@@ -242,6 +381,7 @@ module.exports = async (req, res) => {
           return res.status(403).json({ message: 'Admin access required' });
         }
         
+        // Get all users
         const users = await db.collection('users').find({}, {
           projection: { password: 0 }
         }).toArray();
@@ -252,7 +392,7 @@ module.exports = async (req, res) => {
       }
     }
     
-    // Get all picks
+    // Get all picks (admin only)
     if (path === '/admin/picks' && req.method === 'GET') {
       try {
         const decoded = verifyToken(req);
@@ -263,6 +403,7 @@ module.exports = async (req, res) => {
           return res.status(403).json({ message: 'Admin access required' });
         }
         
+        // Get all picks
         const picks = await db.collection('picks').find({}).toArray();
         
         return res.status(200).json({ picks });
@@ -274,13 +415,7 @@ module.exports = async (req, res) => {
     // Get pool settings
     if (path === '/admin/settings' && req.method === 'GET') {
       try {
-        const decoded = verifyToken(req);
-        
-        // Check if user is admin
-        const admin = await isAdmin(db, decoded.email);
-        if (!admin) {
-          return res.status(403).json({ message: 'Admin access required' });
-        }
+        verifyToken(req);
         
         // Get the latest settings
         const settings = await db.collection('poolSettings').findOne({}, {
@@ -301,7 +436,7 @@ module.exports = async (req, res) => {
       }
     }
     
-    // Update pool settings
+    // Update pool settings (admin only)
     if (path === '/admin/settings' && req.method === 'PUT') {
       try {
         const decoded = verifyToken(req);
@@ -321,7 +456,7 @@ module.exports = async (req, res) => {
         // Insert new settings (keeping history)
         await db.collection('poolSettings').insertOne({
           currentDay,
-          requiredPicks,
+          requiredPicks: parseInt(requiredPicks),
           updatedBy: decoded.email,
           updatedAt: new Date()
         });
