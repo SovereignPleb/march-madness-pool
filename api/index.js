@@ -58,6 +58,22 @@ module.exports = async (req, res) => {
   const url = new URL(req.url, `http://${req.headers.host}`);
   const path = url.pathname.replace('/api', '');
 
+  // Connection test endpoint
+  if (path === '/test') {
+    try {
+      const db = await connectToDatabase();
+      return res.status(200).json({ 
+        message: 'MongoDB connection successful',
+        dbName: db.databaseName
+      });
+    } catch (error) {
+      return res.status(500).json({ 
+        message: 'MongoDB connection failed', 
+        error: error.message 
+      });
+    }
+  }
+
   try {
     const db = await connectToDatabase();
 
