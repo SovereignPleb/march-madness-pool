@@ -48,22 +48,21 @@ let editingPickId = null;
 // Initialize the application
 init();
 
-// Add this at the beginning of the init function:
 function init() {
   // VERSION INDICATOR - Remove this after confirming the update is live
-  console.log("Running NEW version with privacy fixes - March 18, 2025");
+  console.log("Running MONGODB version - March 18, 2025");
   
   // Add a visible indicator on the login page
   const versionIndicator = document.createElement('div');
   versionIndicator.style.position = 'fixed';
   versionIndicator.style.bottom = '10px';
   versionIndicator.style.right = '10px';
-  versionIndicator.style.background = '#ffeb3b';
-  versionIndicator.style.color = 'black';
+  versionIndicator.style.background = '#4caf50';
+  versionIndicator.style.color = 'white';
   versionIndicator.style.padding = '5px 10px';
   versionIndicator.style.borderRadius = '4px';
   versionIndicator.style.fontSize = '12px';
-  versionIndicator.textContent = 'NEW VERSION: Mar 18, 2025';
+  versionIndicator.textContent = 'MONGODB VERSION: Mar 18, 2025';
   document.body.appendChild(versionIndicator);
   
   // Set up event listeners
@@ -125,9 +124,14 @@ async function handleLogin(e) {
     token = response.data.token;
     localStorage.setItem('token', token);
     currentUser = response.data.user;
-    isAdmin = false;
-    localStorage.setItem('isAdmin', 'false');
-    showPicksInterface();
+    isAdmin = response.data.user.isAdmin || false;
+    localStorage.setItem('isAdmin', isAdmin ? 'true' : 'false');
+    
+    if (isAdmin) {
+      fetchAdminData();
+    } else {
+      showPicksInterface();
+    }
   } catch (error) {
     alert('Login failed: ' + (error.response?.data?.message || 'Unknown error'));
   }
@@ -248,95 +252,23 @@ async function fetchAdminData() {
   } catch (error) {
     console.error('Error fetching admin data:', error);
     
-    // For MVP: If the admin endpoints don't exist yet, use mock data
-    mockAdminData();
+    // If there's an error (likely permissions), redirect to login
+    handleAdminLogout();
   }
-}
-
-function mockAdminData() {
-  // Get all picks from localStorage
-  let allPicks = [];
-  const allPicksKey = 'all_picks';
-  const storedAllPicks = localStorage.getItem(allPicksKey);
-  
-  if (storedAllPicks) {
-    try {
-      allPicks = JSON.parse(storedAllPicks);
-    } catch (e) {
-      console.error('Error parsing stored picks:', e);
-    }
-  }
-  
-  // Extract unique users from picks
-  const userEmails = [...new Set(allPicks.map(pick => pick.userEmail))];
-  
-  // Generate user objects
-  allUsers = userEmails.map(email => ({
-    email: email,
-    buybacks: 0,
-    eliminated: false
-  }));
-  
-  // If no users found, add mock users
-  if (allUsers.length === 0) {
-    allUsers = [
-      { email: 'user1@example.com', buybacks: 0, eliminated: false },
-      { email: 'user2@example.com', buybacks: 1, eliminated: false },
-      { email: 'admin@example.com', buybacks: 0, eliminated: false }
-    ];
-  }
-  
-  // Use the existing picks or mock picks
-  allUserPicks = allPicks.length > 0 ? allPicks : [
-    {
-      userEmail: 'user1@example.com',
-      day: 'Thursday',
-      date: new Date().toISOString(),
-      teams: [
-        { id: 1, name: 'Duke', seed: 1, region: 'East' },
-        { id: 4, name: 'Houston', seed: 1, region: 'South' }
-      ]
-    },
-    {
-      userEmail: 'user2@example.com',
-      day: 'Thursday',
-      date: new Date().toISOString(),
-      teams: [
-        { id: 2, name: 'Alabama', seed: 2, region: 'East' },
-        { id: 5, name: 'Tennessee', seed: 2, region: 'South' }
-      ]
-    }
-  ];
-  
-  renderUsersList();
-  renderAllPicks();
 }
 
 async function loadTeamsData() {
   try {
-    // In a real app, this would come from your API
-    // For the MVP, we'll use hardcoded data
-    allTeams = [
-      { id: 1, name: 'Duke', seed: 1, region: 'East' },
-      { id: 2, name: 'Alabama', seed: 2, region: 'East' },
-      { id: 3, name: 'Wisconsin', seed: 3, region: 'East' },
-      { id: 4, name: 'Houston', seed: 1, region: 'South' },
-      { id: 5, name: 'Tennessee', seed: 2, region: 'South' },
-      { id: 6, name: 'Florida', seed: 1, region: 'West' },
-      { id: 7, name: 'St. John\'s', seed: 2, region: 'West' },
-      { id: 8, name: 'Auburn', seed: 1, region: 'Midwest' },
-      { id: 9, name: 'Michigan State', seed: 2, region: 'Midwest' },
-      { id: 10, name: 'Iowa State', seed: 3, region: 'Midwest' },
-      { id: 11, name: 'Texas A&M', seed: 4, region: 'Midwest' },
-      { id: 12, name: 'Michigan', seed: 5, region: 'Midwest' },
-      { id: 13, name: 'Ole Miss', seed: 6, region: 'Midwest' },
-      { id: 14, name: 'Marquette', seed: 7, region: 'Midwest' },
-      { id: 15, name: 'Louisville', seed: 8, region: 'Midwest' },
-      { id: 16, name: 'Creighton', seed: 9, region: 'Midwest' }
-    ];
-    
-    if (token && !isAdmin) {
-      fetchAvailableTeams();
+    if (token) {
+      const response = await axios.get(`${API_URL}/teams`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      
+      allTeams = response.data.teams || [];
+      
+      if (!isAdmin) {
+        fetchAvailableTeams();
+      }
     }
   } catch (error) {
     console.error('Error loading teams data:', error);
@@ -345,21 +277,26 @@ async function loadTeamsData() {
 
 async function fetchAvailableTeams() {
   try {
-    // In a real app, this would filter based on user's previous picks from the API
-    // For now, we'll simulate by removing teams from previous picks
-    const usedTeamIds = previousPicks.flatMap(pick => pick.teams.map(team => team.id));
+    const response = await axios.get(`${API_URL}/teams/available`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
     
-    // If editing, don't exclude the teams from the pick being edited
+    availableTeams = response.data.teams || [];
+    
+    // If editing, add back the teams from the current pick
     if (editingPickId) {
-      const editingPick = previousPicks.find(pick => pick.id === editingPickId);
+      const editingPick = previousPicks.find(pick => pick._id === editingPickId);
       if (editingPick) {
-        const editingTeamIds = editingPick.teams.map(team => team.id);
-        availableTeams = allTeams.filter(team => 
-          !usedTeamIds.includes(team.id) || editingTeamIds.includes(team.id)
-        );
+        const editingTeamIds = editingPick.teams.map(team => team._id);
+        
+        // For each team in the editing pick, add it to available teams if not already there
+        editingPick.teams.forEach(editTeam => {
+          const exists = availableTeams.some(team => team._id === editTeam._id);
+          if (!exists) {
+            availableTeams.push(editTeam);
+          }
+        });
       }
-    } else {
-      availableTeams = allTeams.filter(team => !usedTeamIds.includes(team.id));
     }
     
     renderAvailableTeams();
@@ -370,37 +307,11 @@ async function fetchAvailableTeams() {
 
 async function fetchPreviousPicks() {
   try {
-    // Get only this user's picks by filtering all picks from localStorage
-    let allStoredPicks = [];
-    
-    // Get picks from centralized storage
-    const allPicksKey = 'all_picks';
-    const storedAllPicks = localStorage.getItem(allPicksKey);
-    
-    if (storedAllPicks) {
-      try {
-        allStoredPicks = JSON.parse(storedAllPicks);
-      } catch (e) {
-        console.error('Error parsing stored picks:', e);
-        allStoredPicks = [];
-      }
-    }
-    
-    // Filter to only show current user's picks
-    previousPicks = allStoredPicks.filter(pick => 
-      pick.userEmail === currentUser.email
-    );
-    
-    // Add unique IDs to picks if they don't have them
-    previousPicks = previousPicks.map(pick => {
-      if (!pick.id) {
-        pick.id = Date.now() + Math.floor(Math.random() * 1000);
-      }
-      return pick;
+    const response = await axios.get(`${API_URL}/picks`, {
+      headers: { Authorization: `Bearer ${token}` }
     });
     
-    // Sort picks by date
-    previousPicks.sort((a, b) => new Date(b.date) - new Date(a.date));
+    previousPicks = response.data.picks || [];
     
     renderPreviousPicks();
     fetchAvailableTeams();
@@ -415,17 +326,19 @@ async function updatePoolSettings() {
   const newRequiredPicks = parseInt(requiredPicksInput.value);
   
   try {
-    // In a real app, send to API
-    // For MVP, store in localStorage
-    localStorage.setItem('currentDay', newDay);
-    localStorage.setItem('requiredPicks', newRequiredPicks);
+    const response = await axios.put(`${API_URL}/admin/settings`, {
+      currentDay: newDay,
+      requiredPicks: newRequiredPicks
+    }, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
     
     currentDay = newDay;
     requiredPicks = newRequiredPicks;
     
     alert('Pool settings updated successfully!');
   } catch (error) {
-    alert('Failed to update pool settings: ' + error.message);
+    alert('Failed to update pool settings: ' + (error.response?.data?.message || error.message));
   }
 }
 
@@ -434,29 +347,40 @@ function showPicksInterface() {
   hideAllForms();
   pickForm.style.display = 'block';
   
-  // Get pool settings from localStorage (in a real app, from API)
-  const storedDay = localStorage.getItem('currentDay');
-  const storedRequiredPicks = localStorage.getItem('requiredPicks');
-  
-  currentDay = storedDay || currentDay;
-  requiredPicks = storedRequiredPicks ? parseInt(storedRequiredPicks) : requiredPicks;
-  
-  // Update pool info
-  dayInfoSpan.textContent = `Current Day: ${currentDay}`;
-  requiredInfoSpan.textContent = `Required Picks: ${requiredPicks}`;
+  // Get current pool settings
+  axios.get(`${API_URL}/admin/settings`, {
+    headers: { Authorization: `Bearer ${token}` }
+  })
+  .then(response => {
+    if (response.data) {
+      currentDay = response.data.currentDay || 'Thursday';
+      requiredPicks = response.data.requiredPicks || 2;
+      
+      // Update pool info
+      dayInfoSpan.textContent = `Current Day: ${currentDay}`;
+      requiredInfoSpan.textContent = `Required Picks: ${requiredPicks}`;
+    }
+  })
+  .catch(error => {
+    console.error('Error getting pool settings:', error);
+  });
   
   // Reset edit mode
   editingPickId = null;
   selectedTeams = [];
   
   // Load data
-  fetchAvailableTeams();
+  fetchPreviousPicks();
 }
 
 function renderAvailableTeams() {
   availableTeamsDiv.innerHTML = '';
   
   if (availableTeams.length === 0) {
+    availableTeamsDiv.innerHTML = '<p class="text-muted">No teams available</p>';
+    return;
+
+if (availableTeams.length === 0) {
     availableTeamsDiv.innerHTML = '<p class="text-muted">No teams available</p>';
     return;
   }
@@ -468,7 +392,7 @@ function renderAvailableTeams() {
     const item = document.createElement('button');
     item.type = 'button';
     item.className = 'list-group-item list-group-item-action';
-    if (selectedTeams.some(t => t.id === team.id)) {
+    if (selectedTeams.some(t => t._id === team._id)) {
       item.classList.add('active');
     }
     item.textContent = `${team.seed}. ${team.name} (${team.region})`;
@@ -494,7 +418,7 @@ function renderSelectedTeams() {
       item.className = 'list-group-item d-flex justify-content-between align-items-center';
       item.innerHTML = `
         ${team.seed}. ${team.name} (${team.region})
-        <button type="button" class="btn btn-sm btn-outline-danger" onclick="removeTeam(${team.id})">
+        <button type="button" class="btn btn-sm btn-outline-danger" onclick="removeTeam('${team._id}')">
           Remove
         </button>
       `;
@@ -544,7 +468,7 @@ function renderPreviousPicks() {
       const editBtn = document.createElement('button');
       editBtn.className = 'btn btn-sm btn-outline-primary me-2';
       editBtn.textContent = 'Edit';
-      editBtn.onclick = () => editPicks(pick.id);
+      editBtn.onclick = () => editPicks(pick._id);
       actionDiv.appendChild(editBtn);
     }
     
@@ -697,7 +621,7 @@ function renderAllPicks() {
 
 // Action handlers
 function toggleTeamSelection(team) {
-  const index = selectedTeams.findIndex(t => t.id === team.id);
+  const index = selectedTeams.findIndex(t => t._id === team._id);
   
   if (index > -1) {
     // Remove from selected teams
@@ -718,16 +642,10 @@ function toggleTeamSelection(team) {
 // Edit picks
 function editPicks(pickId) {
   // Find the pick to edit
-  const pickToEdit = previousPicks.find(pick => pick.id === pickId);
+  const pickToEdit = previousPicks.find(pick => pick._id === pickId);
   
   if (!pickToEdit) {
     alert('Could not find the selected pick.');
-    return;
-  }
-  
-  // Verify ownership
-  if (pickToEdit.userEmail !== currentUser.email) {
-    alert('You can only edit your own picks!');
     return;
   }
   
@@ -765,7 +683,7 @@ window.cancelEdit = function() {
 
 // Exposed to inline onclick handlers
 window.removeTeam = function(teamId) {
-  selectedTeams = selectedTeams.filter(team => team.id !== teamId);
+  selectedTeams = selectedTeams.filter(team => team._id !== teamId);
   renderSelectedTeams();
 };
 
@@ -778,61 +696,44 @@ async function handleSubmitPicks(e) {
   }
   
   try {
-    // Get all existing picks from localStorage
-    let allPicks = [];
-    const allPicksKey = 'all_picks';
-    const storedAllPicks = localStorage.getItem(allPicksKey);
-    
-    if (storedAllPicks) {
-      try {
-        allPicks = JSON.parse(storedAllPicks);
-      } catch (e) {
-        console.error('Error parsing stored picks:', e);
-        allPicks = [];
-      }
-    }
-    
     if (editingPickId) {
       // Update existing pick
-      const pickIndex = allPicks.findIndex(pick => 
-        pick.id === editingPickId && pick.userEmail === currentUser.email
-      );
+      const response = await axios.put(`${API_URL}/picks/update`, {
+        pickId: editingPickId,
+        teams: selectedTeams
+      }, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
       
-      if (pickIndex > -1) {
-        allPicks[pickIndex].teams = selectedTeams;
-        allPicks[pickIndex].date = new Date().toISOString();
-      } else {
-        alert('You can only edit your own picks!');
-        return;
-      }
+      alert('Your picks have been updated!');
     } else {
       // Create new pick
-      const newPick = {
-        id: Date.now(),
-        day: currentDay,
-        date: new Date().toISOString(),
+      const response = await axios.post(`${API_URL}/picks/submit`, {
         teams: selectedTeams,
-        userEmail: currentUser.email
-      };
+        day: currentDay
+      }, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
       
-      allPicks.push(newPick);
+      alert('Your picks have been submitted!');
     }
     
-    // Save all picks back to localStorage
-    localStorage.setItem(allPicksKey, JSON.stringify(allPicks));
-    
-    // Refresh the user's picks
-    await fetchPreviousPicks();
-    
-    // UI updates
+    // Reset and refresh
+    editingPickId = null;
     selectedTeams = [];
+    
+    // Remove any editing alert
     const alerts = document.querySelectorAll('.alert-warning');
     alerts.forEach(alert => alert.remove());
-    submitPicksBtn.textContent = 'Submit Picks';
-    editingPickId = null;
     
-    alert(editingPickId ? 'Your picks have been updated!' : 'Your picks have been submitted!');
+    // Reset submit button
+    submitPicksBtn.textContent = 'Submit Picks';
+    
+    // Refresh picks
+    fetchPreviousPicks();
+    
   } catch (error) {
-    alert('Failed to submit picks: ' + error.message);
+    alert('Failed to submit picks: ' + (error.response?.data?.message || error.message));
   }
 }
+  
