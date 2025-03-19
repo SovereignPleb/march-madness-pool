@@ -48,7 +48,24 @@ let editingPickId = null;
 // Initialize the application
 init();
 
+// Add this at the beginning of the init function:
 function init() {
+  // VERSION INDICATOR - Remove this after confirming the update is live
+  console.log("Running NEW version with privacy fixes - March 18, 2025");
+  
+  // Add a visible indicator on the login page
+  const versionIndicator = document.createElement('div');
+  versionIndicator.style.position = 'fixed';
+  versionIndicator.style.bottom = '10px';
+  versionIndicator.style.right = '10px';
+  versionIndicator.style.background = '#ffeb3b';
+  versionIndicator.style.color = 'black';
+  versionIndicator.style.padding = '5px 10px';
+  versionIndicator.style.borderRadius = '4px';
+  versionIndicator.style.fontSize = '12px';
+  versionIndicator.textContent = 'NEW VERSION: Mar 18, 2025';
+  document.body.appendChild(versionIndicator);
+  
   // Set up event listeners
   document.getElementById('login').addEventListener('submit', handleLogin);
   document.getElementById('register').addEventListener('submit', handleRegister);
