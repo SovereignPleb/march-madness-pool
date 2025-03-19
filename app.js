@@ -345,14 +345,14 @@ async function updatePoolSettings() {
 // UI rendering functions
 function showPicksInterface() {
   hideAllForms();
-  pickForm.style.display = 'block';
-
+  if (pickForm) {
+    pickForm.style.display = 'block';
+    
     // Display the user's email
     const userEmailElement = document.getElementById('userEmail');
     if (userEmailElement && currentUser && currentUser.email) {
       userEmailElement.textContent = currentUser.email;
     }
-    
   } else {
     console.error("Pick form element not found");
     return;
@@ -391,9 +391,6 @@ function renderAvailableTeams() {
     availableTeamsDiv.innerHTML = '<p class="text-muted">No teams available</p>';
     return;
 
-if (availableTeams.length === 0) {
-    availableTeamsDiv.innerHTML = '<p class="text-muted">No teams available</p>';
-    return;
   }
   
   const teamsList = document.createElement('div');
