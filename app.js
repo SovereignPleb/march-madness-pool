@@ -2,7 +2,7 @@
 const loginForm = document.getElementById('loginForm');
 const registerForm = document.getElementById('registerForm');
 const pickForm = document.getElementById('pickForm');
-const adminLoginForm = document.getElementById('adminLoginForm');
+const adminLoginForm = document.getElementById('adminLoginForm') || null;
 const adminDashboard = document.getElementById('adminDashboard');
 
 // Navigation buttons
@@ -222,11 +222,11 @@ function handleAdminLogout() {
 }
 
 function hideAllForms() {
-  loginForm.style.display = 'none';
-  registerForm.style.display = 'none';
-  pickForm.style.display = 'none';
-  adminLoginForm.style.display = 'none';
-  adminDashboard.style.display = 'none';
+  if (loginForm) loginForm.style.display = 'none';
+  if (registerForm) registerForm.style.display = 'none';
+  if (pickForm) pickForm.style.display = 'none';
+  if (adminLoginForm) adminLoginForm.style.display = 'none';
+  if (adminDashboard) adminDashboard.style.display = 'none';
 }
 
 // Data fetching functions
@@ -417,8 +417,6 @@ function renderAvailableTeams() {
   if (availableTeams.length === 0) {
     availableTeamsDiv.innerHTML = '<p class="text-muted">No teams available</p>';
     return;
-
-  }
   
   const teamsList = document.createElement('div');
   teamsList.className = 'list-group';
