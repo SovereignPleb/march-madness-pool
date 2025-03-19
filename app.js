@@ -1,13 +1,17 @@
-// Simplified March Madness Pool app.js
 // DOM elements - Main UI
 const loginForm = document.getElementById('loginForm');
 const registerForm = document.getElementById('registerForm');
 const pickForm = document.getElementById('pickForm');
+const adminLoginForm = document.getElementById('adminLoginForm');
+const adminDashboard = document.getElementById('adminDashboard');
 
 // Navigation buttons
 const showRegisterBtn = document.getElementById('showRegister');
 const showLoginBtn = document.getElementById('showLogin');
+const showAdminLoginBtn = document.getElementById('showAdminLogin');
+const backToLoginBtn = document.getElementById('backToLogin');
 const logoutBtn = document.getElementById('logout');
+const adminLogoutBtn = document.getElementById('adminLogout');
 
 // User interface elements
 const dayInfoSpan = document.getElementById('dayInfo');
@@ -17,8 +21,19 @@ const selectedTeamsDiv = document.getElementById('selectedTeams');
 const previousPicksDiv = document.getElementById('previousPicks');
 const submitPicksBtn = document.getElementById('submitPicks');
 
+// Admin interface elements
+const usersListDiv = document.getElementById('usersList');
+const allPicksDiv = document.getElementById('allPicks');
+const currentDaySelect = document.getElementById('currentDaySelect');
+const requiredPicksInput = document.getElementById('requiredPicksInput');
+const updatePoolSettingsBtn = document.getElementById('updatePoolSettings');
+
+// Base API URL - change this to your Vercel deployment URL
+const API_URL = window.location.origin + '/api';
+
 // Application state
 let token = localStorage.getItem('token');
+let isAdmin = localStorage.getItem('isAdmin') === 'true';
 let currentUser = null;
 let availableTeams = [];
 let selectedTeams = [];
@@ -26,25 +41,28 @@ let requiredPicks = 2;
 let currentDay = 'Thursday';
 let previousPicks = [];
 let allTeams = [];
+let allUsers = [];
+let allUserPicks = [];
 let editingPickId = null;
 
 // Initialize the application
 init();
 
 function init() {
-  console.log("Running SIMPLIFIED version - March 18, 2025");
+  // VERSION INDICATOR - Shows you are running the MongoDB version
+  console.log("Running MONGODB version - March 18, 2025");
   
-  // Add a visible indicator
+  // Add a visible indicator on the login page
   const versionIndicator = document.createElement('div');
   versionIndicator.style.position = 'fixed';
   versionIndicator.style.bottom = '10px';
   versionIndicator.style.right = '10px';
-  versionIndicator.style.background = '#ff5722';
+  versionIndicator.style.background = '#4caf50';
   versionIndicator.style.color = 'white';
   versionIndicator.style.padding = '5px 10px';
   versionIndicator.style.borderRadius = '4px';
   versionIndicator.style.fontSize = '12px';
-  versionIndicator.textContent = 'SIMPLIFIED VERSION: Mar 18, 2025';
+  versionIndicator.textContent = 'MONGODB VERSION: Mar 18, 2025';
   document.body.appendChild(versionIndicator);
   
   // Set up event listeners with console logging
@@ -92,20 +110,92 @@ function init() {
     });
   }
   
+  if (showAdminLoginBtn) {
+    showAdminLoginBtn.addEventListener('click', () => {
+      console.log("Show admin login clicked");
+      loginForm.style.display = 'none';
+      adminLoginForm.style.display = 'block';
+    });
+  }
+  
+  if (backToLoginBtn) {
+    backToLoginBtn.addEventListener('click', () => {
+      console.log("Back to login clicked");
+      adminLoginForm.style.display = 'none';
+      loginForm.style.display = 'block';
+    });
+  }
+  
   if (logoutBtn) {
     logoutBtn.addEventListener('click', handleLogout);
+  }
+  
+  if (adminLogoutBtn) {
+    adminLogoutBtn.addEventListener('click', handleAdminLogout);
+  }
+  
+  // Admin functions
+  if (updatePoolSettingsBtn) {
+    updatePoolSettingsBtn.addEventListener('click', updatePoolSettings);
   }
   
   // Check if user is logged in
   if (token) {
     console.log("Token found, fetching user data");
-    fetchUserData();
+    if (isAdmin) {
+      fetchAdminData();
+    } else {
+      fetchUserData();
+    }
   } else {
     console.log("No token found, showing login form");
   }
   
-  // Load initial teams data
-  loadTeamsData();
+  // Test MongoDB connection
+  testMongoConnection();
+}
+
+// Test MongoDB connection
+async function testMongoConnection() {
+  try {
+    console.log("Testing MongoDB connection...");
+    const response = await axios.get(`${API_URL}/test`);
+    console.log("MongoDB connection test result:", response.data);
+    
+    // Add a notification to the page
+    const notif = document.createElement('div');
+    notif.style.position = 'fixed';
+    notif.style.top = '10px';
+    notif.style.right = '10px';
+    notif.style.background = '#4caf50';
+    notif.style.color = 'white';
+    notif.style.padding = '10px';
+    notif.style.borderRadius = '4px';
+    notif.style.zIndex = '1000';
+    notif.textContent = 'MongoDB Connected!';
+    document.body.appendChild(notif);
+    
+    // Remove after 5 seconds
+    setTimeout(() => {
+      notif.remove();
+    }, 5000);
+    
+  } catch (error) {
+    console.error("MongoDB connection test failed:", error);
+    
+    // Add error notification
+    const notif = document.createElement('div');
+    notif.style.position = 'fixed';
+    notif.style.top = '10px';
+    notif.style.right = '10px';
+    notif.style.background = '#f44336';
+    notif.style.color = 'white';
+    notif.style.padding = '10px';
+    notif.style.borderRadius = '4px';
+    notif.style.zIndex = '1000';
+    notif.textContent = 'MongoDB Connection Failed';
+    document.body.appendChild(notif);
+  }
 }
 
 // Authentication handlers
@@ -117,21 +207,20 @@ async function handleLogin(e) {
   console.log("Login attempt for:", email);
   
   try {
-    // For testing - bypass the API
-    alert(`Login successful for ${email}`);
-    token = "dummy-token";
-    localStorage.setItem('token', token);
-    currentUser = { email: email };
-    showPicksInterface();
-    return;
+    const response = await axios.post(`${API_URL}/login`, { email, password });
+    console.log("Login response:", response.data);
     
-    /* Commented out API call for now
-    const response = await axios.post(`/api/login`, { email, password });
     token = response.data.token;
     localStorage.setItem('token', token);
     currentUser = response.data.user;
-    showPicksInterface();
-    */
+    isAdmin = response.data.user.isAdmin || false;
+    localStorage.setItem('isAdmin', isAdmin ? 'true' : 'false');
+    
+    if (isAdmin) {
+      fetchAdminData();
+    } else {
+      showPicksInterface();
+    }
   } catch (error) {
     console.error("Login error:", error);
     alert('Login failed: ' + (error.response?.data?.message || 'Unknown error'));
@@ -146,115 +235,281 @@ async function handleRegister(e) {
   console.log("Registration attempt for:", email);
   
   try {
-    // For testing - bypass the API
-    alert(`Registration successful for ${email}! Please log in.`);
-    registerForm.style.display = 'none';
-    loginForm.style.display = 'block';
-    return;
+    const response = await axios.post(`${API_URL}/register`, { email, password });
+    console.log("Registration response:", response.data);
     
-    /* Commented out API call for now
-    const response = await axios.post(`/api/register`, { email, password });
     alert('Registration successful! Please log in.');
     registerForm.style.display = 'none';
     loginForm.style.display = 'block';
-    */
   } catch (error) {
     console.error("Registration error:", error);
     alert('Registration failed: ' + (error.response?.data?.message || 'Unknown error'));
   }
 }
 
+async function handleAdminLogin(e) {
+  e.preventDefault();
+  const email = document.getElementById('adminEmail').value;
+  const password = document.getElementById('adminPassword').value;
+  
+  console.log("Admin login attempt for:", email);
+  
+  try {
+    // In a real app, you'd have a separate admin login endpoint
+    // For the MVP, we'll simulate by checking for an admin email
+    if (email.includes('admin')) {
+      const response = await axios.post(`${API_URL}/login`, { email, password });
+      console.log("Admin login response:", response.data);
+      
+      token = response.data.token;
+      localStorage.setItem('token', token);
+      localStorage.setItem('isAdmin', 'true');
+      isAdmin = true;
+      fetchAdminData();
+    } else {
+      alert('Not an admin account');
+    }
+  } catch (error) {
+    console.error("Admin login error:", error);
+    alert('Admin login failed: ' + (error.response?.data?.message || 'Unknown error'));
+  }
+}
+
 function handleLogout() {
   console.log("Logout clicked");
   localStorage.removeItem('token');
+  localStorage.removeItem('isAdmin');
   token = null;
   currentUser = null;
+  isAdmin = false;
+  hideAllForms();
   loginForm.style.display = 'block';
-  pickForm.style.display = 'none';
 }
 
-// Data handling functions
+function handleAdminLogout() {
+  console.log("Admin logout clicked");
+  localStorage.removeItem('token');
+  localStorage.removeItem('isAdmin');
+  token = null;
+  isAdmin = false;
+  hideAllForms();
+  loginForm.style.display = 'block';
+}
+
+function hideAllForms() {
+  if (loginForm) loginForm.style.display = 'none';
+  if (registerForm) registerForm.style.display = 'none';
+  if (pickForm) pickForm.style.display = 'none';
+  if (adminLoginForm) adminLoginForm.style.display = 'none';
+  if (adminDashboard) adminDashboard.style.display = 'none';
+}
+
+// Data fetching functions
 async function fetchUserData() {
   try {
-    console.log("Fetching user data...");
-    // For testing - bypass API
-    currentUser = { email: "test@example.com" };
-    showPicksInterface();
-    loadFakeData();
-    
-    /* Commented out API call for now
-    const response = await axios.get(`/api/user`, {
+    console.log("Fetching user data from API...");
+    const response = await axios.get(`${API_URL}/user`, {
       headers: { Authorization: `Bearer ${token}` }
     });
+    console.log("User data response:", response.data);
+    
     currentUser = response.data;
     showPicksInterface();
     fetchPreviousPicks();
-    */
   } catch (error) {
     console.error("Error fetching user data:", error);
     handleLogout();
   }
 }
 
+async function fetchAdminData() {
+  try {
+    console.log("Fetching admin data...");
+    hideAllForms();
+    if (adminDashboard) {
+      adminDashboard.style.display = 'block';
+    } else {
+      console.error("Admin dashboard element not found");
+      return;
+    }
+    
+    // Fetch all users
+    const usersResponse = await axios.get(`${API_URL}/admin/users`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    console.log("Admin users response:", usersResponse.data);
+    
+    allUsers = usersResponse.data.users || [];
+    renderUsersList();
+    
+    // Fetch all picks
+    const picksResponse = await axios.get(`${API_URL}/admin/picks`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    console.log("Admin picks response:", picksResponse.data);
+    
+    allUserPicks = picksResponse.data.picks || [];
+    renderAllPicks();
+    
+    // Fetch pool settings
+    const settingsResponse = await axios.get(`${API_URL}/admin/settings`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    console.log("Admin settings response:", settingsResponse.data);
+    
+if (settingsResponse.data) {
+      currentDay = settingsResponse.data.currentDay || 'Thursday';
+      requiredPicks = settingsResponse.data.requiredPicks || 2;
+      
+      if (currentDaySelect) currentDaySelect.value = currentDay;
+      if (requiredPicksInput) requiredPicksInput.value = requiredPicks;
+    }
+  } catch (error) {
+    console.error("Error fetching admin data:", error);
+    
+    // If there's an error (likely permissions), redirect to login
+    handleAdminLogout();
+  }
+}
+
 async function loadTeamsData() {
   try {
-    console.log("Loading teams data...");
-    // Hardcoded teams data for testing
-    allTeams = [
-      { _id: "1", name: 'Duke', seed: 1, region: 'East' },
-      { _id: "2", name: 'Alabama', seed: 2, region: 'East' },
-      { _id: "3", name: 'Wisconsin', seed: 3, region: 'East' },
-      { _id: "4", name: 'Houston', seed: 1, region: 'South' },
-      { _id: "5", name: 'Tennessee', seed: 2, region: 'South' },
-      { _id: "6", name: 'Florida', seed: 1, region: 'West' },
-      { _id: "7", name: 'St. John\'s', seed: 2, region: 'West' },
-      { _id: "8", name: 'Auburn', seed: 1, region: 'Midwest' }
-    ];
-    
-    availableTeams = [...allTeams];
+    console.log("Loading teams data from API...");
+    if (token) {
+      const response = await axios.get(`${API_URL}/teams`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      console.log("Teams data response:", response.data);
+      
+      allTeams = response.data.teams || [];
+      
+      if (!isAdmin) {
+        fetchAvailableTeams();
+      }
+    }
   } catch (error) {
     console.error("Error loading teams data:", error);
   }
 }
 
-function loadFakeData() {
-  // Load some fake previous picks for testing
-  previousPicks = [
-    {
-      _id: "pick1",
-      day: "Thursday",
-      date: new Date().toISOString(),
-      userEmail: currentUser.email,
-      teams: [
-        { _id: "1", name: 'Duke', seed: 1, region: 'East' },
-        { _id: "4", name: 'Houston', seed: 1, region: 'South' }
-      ]
+async function fetchAvailableTeams() {
+  try {
+    console.log("Fetching available teams...");
+    const response = await axios.get(`${API_URL}/teams/available`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    console.log("Available teams response:", response.data);
+    
+    availableTeams = response.data.teams || [];
+    
+    // If editing, add back the teams from the current pick
+    if (editingPickId) {
+      const editingPick = previousPicks.find(pick => pick._id === editingPickId);
+      if (editingPick) {
+        const editingTeamIds = editingPick.teams.map(team => team._id);
+        
+        // For each team in the editing pick, add it to available teams if not already there
+        editingPick.teams.forEach(editTeam => {
+          const exists = availableTeams.some(team => team._id === editTeam._id);
+          if (!exists) {
+            availableTeams.push(editTeam);
+          }
+        });
+      }
     }
-  ];
-  
-  renderPreviousPicks();
-  renderAvailableTeams();
+    
+    renderAvailableTeams();
+  } catch (error) {
+    console.error("Error fetching available teams:", error);
+  }
 }
 
-// UI functions
+async function fetchPreviousPicks() {
+  try {
+    console.log("Fetching previous picks from API...");
+    const response = await axios.get(`${API_URL}/picks`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    console.log("Previous picks response:", response.data);
+    
+    previousPicks = response.data.picks || [];
+    
+    renderPreviousPicks();
+    fetchAvailableTeams();
+  } catch (error) {
+    console.error("Error fetching previous picks:", error);
+  }
+}
+
+// Admin functions
+async function updatePoolSettings() {
+  const newDay = currentDaySelect.value;
+  const newRequiredPicks = parseInt(requiredPicksInput.value);
+  
+  try {
+    console.log("Updating pool settings...", { currentDay: newDay, requiredPicks: newRequiredPicks });
+    const response = await axios.put(`${API_URL}/admin/settings`, {
+      currentDay: newDay,
+      requiredPicks: newRequiredPicks
+    }, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    console.log("Update pool settings response:", response.data);
+    
+    currentDay = newDay;
+    requiredPicks = newRequiredPicks;
+    
+    alert('Pool settings updated successfully!');
+  } catch (error) {
+    console.error("Error updating pool settings:", error);
+    alert('Failed to update pool settings: ' + (error.response?.data?.message || error.message));
+  }
+}
+
+// UI rendering functions
 function showPicksInterface() {
   console.log("Showing picks interface");
-  loginForm.style.display = 'none';
-  registerForm.style.display = 'none';
-  pickForm.style.display = 'block';
+  hideAllForms();
+  if (pickForm) {
+    pickForm.style.display = 'block';
+  } else {
+    console.error("Pick form element not found");
+    return;
+  }
   
-  // Update pool info
-  dayInfoSpan.textContent = `Current Day: ${currentDay}`;
-  requiredInfoSpan.textContent = `Required Picks: ${requiredPicks}`;
+  // Get current pool settings
+  axios.get(`${API_URL}/admin/settings`, {
+    headers: { Authorization: `Bearer ${token}` }
+  })
+  .then(response => {
+    console.log("Pool settings response:", response.data);
+    if (response.data) {
+      currentDay = response.data.currentDay || 'Thursday';
+      requiredPicks = response.data.requiredPicks || 2;
+      
+      // Update pool info
+      if (dayInfoSpan) dayInfoSpan.textContent = `Current Day: ${currentDay}`;
+      if (requiredInfoSpan) requiredInfoSpan.textContent = `Required Picks: ${requiredPicks}`;
+    }
+  })
+  .catch(error => {
+    console.error("Error getting pool settings:", error);
+  });
   
   // Reset edit mode
   editingPickId = null;
   selectedTeams = [];
   
-  renderAvailableTeams();
+  // Load data
+  fetchPreviousPicks();
 }
 
 function renderAvailableTeams() {
+  if (!availableTeamsDiv) {
+    console.error("Available teams div not found");
+    return;
+  }
+  
   availableTeamsDiv.innerHTML = '';
   
   if (availableTeams.length === 0) {
@@ -282,6 +537,11 @@ function renderAvailableTeams() {
 }
 
 function renderSelectedTeams() {
+  if (!selectedTeamsDiv) {
+    console.error("Selected teams div not found");
+    return;
+  }
+  
   selectedTeamsDiv.innerHTML = '';
   
   if (selectedTeams.length === 0) {
@@ -306,11 +566,18 @@ function renderSelectedTeams() {
   }
   
   // Update submit button state and text
-  submitPicksBtn.disabled = selectedTeams.length !== requiredPicks;
-  submitPicksBtn.textContent = editingPickId ? 'Update Picks' : 'Submit Picks';
+  if (submitPicksBtn) {
+    submitPicksBtn.disabled = selectedTeams.length !== requiredPicks;
+    submitPicksBtn.textContent = editingPickId ? 'Update Picks' : 'Submit Picks';
+  }
 }
 
 function renderPreviousPicks() {
+  if (!previousPicksDiv) {
+    console.error("Previous picks div not found");
+    return;
+  }
+  
   previousPicksDiv.innerHTML = '';
   
   if (previousPicks.length === 0) {
@@ -321,7 +588,14 @@ function renderPreviousPicks() {
   const picksList = document.createElement('div');
   picksList.className = 'list-group';
   
-  previousPicks.forEach(pick => {
+  // Sort picks with current day at the top
+  const sortedPicks = [...previousPicks].sort((a, b) => {
+    if (a.day === currentDay && b.day !== currentDay) return -1;
+    if (a.day !== currentDay && b.day === currentDay) return 1;
+    return new Date(b.date) - new Date(a.date);
+  });
+  
+  sortedPicks.forEach(pick => {
     const item = document.createElement('div');
     item.className = 'list-group-item';
     
@@ -363,6 +637,142 @@ function renderPreviousPicks() {
   previousPicksDiv.appendChild(picksList);
 }
 
+function renderUsersList() {
+  if (!usersListDiv) {
+    console.error("Users list div not found");
+    return;
+  }
+  
+  usersListDiv.innerHTML = '';
+  
+  if (allUsers.length === 0) {
+    usersListDiv.innerHTML = '<p class="text-muted">No users found</p>';
+    return;
+  }
+  
+  const table = document.createElement('table');
+  table.className = 'table table-striped';
+  
+  const thead = document.createElement('thead');
+  thead.innerHTML = `
+    <tr>
+      <th>Email</th>
+      <th>Buybacks</th>
+      <th>Status</th>
+    </tr>
+  `;
+  
+  const tbody = document.createElement('tbody');
+  
+  allUsers.forEach(user => {
+    const row = document.createElement('tr');
+    row.innerHTML = `
+      <td>${user.email}</td>
+      <td>${user.buybacks}</td>
+      <td>${user.eliminated ? '<span class="badge bg-danger">Eliminated</span>' : '<span class="badge bg-success">Active</span>'}</td>
+    `;
+    tbody.appendChild(row);
+  });
+  
+  table.appendChild(thead);
+  table.appendChild(tbody);
+  usersListDiv.appendChild(table);
+}
+
+function renderAllPicks() {
+  if (!allPicksDiv) {
+    console.error("All picks div not found");
+    return;
+  }
+  
+  allPicksDiv.innerHTML = '';
+  
+  if (allUserPicks.length === 0) {
+    allPicksDiv.innerHTML = '<p class="text-muted">No picks submitted yet</p>';
+    return;
+  }
+  
+  // Group picks by day
+  const picksByDay = {};
+  
+  allUserPicks.forEach(pick => {
+    if (!picksByDay[pick.day]) {
+      picksByDay[pick.day] = [];
+    }
+    picksByDay[pick.day].push(pick);
+  });
+  
+  // Create accordion for days
+  const accordion = document.createElement('div');
+  accordion.className = 'accordion';
+  
+  let index = 0;
+  
+  // Sort days in tournament order
+  const tournamentDays = [
+    'Thursday', 'Friday', 'Saturday', 'Sunday',
+    'Sweet16-1', 'Sweet16-2', 'Elite8-1', 'Elite8-2',
+    'FinalFour', 'Championship'
+  ];
+  
+  const sortedDays = Object.keys(picksByDay).sort((a, b) => {
+    return tournamentDays.indexOf(a) - tournamentDays.indexOf(b);
+  });
+  
+  sortedDays.forEach(day => {
+    const picks = picksByDay[day];
+    
+    const accordionItem = document.createElement('div');
+    accordionItem.className = 'accordion-item';
+    
+    const headerId = `heading${index}`;
+    const collapseId = `collapse${index}`;
+    
+    accordionItem.innerHTML = `
+      <h2 class="accordion-header" id="${headerId}">
+        <button class="accordion-button ${index === 0 ? '' : 'collapsed'}" type="button" data-bs-toggle="collapse" data-bs-target="#${collapseId}" aria-expanded="${index === 0}" aria-controls="${collapseId}">
+          ${day} (${picks.length} picks)
+        </button>
+      </h2>
+      <div id="${collapseId}" class="accordion-collapse collapse ${index === 0 ? 'show' : ''}" aria-labelledby="${headerId}">
+        <div class="accordion-body">
+          <table class="table table-sm">
+            <thead>
+              <tr>
+                <th>User</th>
+                <th>Teams</th>
+                <th>Date Submitted</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${picks.map(pick => `
+                <tr>
+                  <td>${pick.userEmail}</td>
+                  <td>${pick.teams.map(team => `<span class="badge bg-primary me-1">${team.name}</span>`).join('')}</td>
+                  <td>${new Date(pick.date).toLocaleString()}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    `;
+    
+    accordion.appendChild(accordionItem);
+    index++;
+  });
+  
+  allPicksDiv.appendChild(accordion);
+  
+  // We need to include Bootstrap JS for the accordion to work
+  if (!document.getElementById('bootstrap-js')) {
+    const script = document.createElement('script');
+    script.id = 'bootstrap-js';
+    script.src = 'https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js';
+    document.body.appendChild(script);
+  }
+}
+
 // Action handlers
 function toggleTeamSelection(team) {
   const index = selectedTeams.findIndex(t => t._id === team._id);
@@ -385,6 +795,7 @@ function toggleTeamSelection(team) {
 
 // Edit picks
 function editPicks(pickId) {
+  console.log("Editing pick:", pickId);
   // Find the pick to edit
   const pickToEdit = previousPicks.find(pick => pick._id === pickId);
   
@@ -395,9 +806,12 @@ function editPicks(pickId) {
   
   editingPickId = pickId;
   selectedTeams = [...pickToEdit.teams];
+  fetchAvailableTeams();
   
   window.scrollTo(0, 0);
-  submitPicksBtn.textContent = 'Update Picks';
+  if (submitPicksBtn) {
+    submitPicksBtn.textContent = 'Update Picks';
+  }
   
   // Remove any existing editing alerts
   const existingAlerts = document.querySelectorAll('.alert-warning');
@@ -413,17 +827,19 @@ function editPicks(pickId) {
   
   // Add the alert before the team selection form
   const teamSelectionForm = document.getElementById('teamSelection');
-  teamSelectionForm.parentNode.insertBefore(alertDiv, teamSelectionForm);
-  
-  renderAvailableTeams();
+  if (teamSelectionForm) {
+    teamSelectionForm.parentNode.insertBefore(alertDiv, teamSelectionForm);
+  }
 }
 
 // Cancel edit mode
 window.cancelEdit = function() {
   editingPickId = null;
   selectedTeams = [];
-  renderAvailableTeams();
-  submitPicksBtn.textContent = 'Submit Picks';
+  fetchAvailableTeams();
+  if (submitPicksBtn) {
+    submitPicksBtn.textContent = 'Submit Picks';
+  }
 };
 
 // Exposed to inline onclick handlers
@@ -444,25 +860,26 @@ async function handleSubmitPicks(e) {
     console.log("Submitting picks:", selectedTeams);
     
     if (editingPickId) {
-      // Update existing pick in our local array for testing
-      const pickIndex = previousPicks.findIndex(pick => pick._id === editingPickId);
-      if (pickIndex > -1) {
-        previousPicks[pickIndex].teams = selectedTeams;
-        previousPicks[pickIndex].date = new Date().toISOString();
-      }
+      // Update existing pick
+      const response = await axios.put(`${API_URL}/picks/update`, {
+        pickId: editingPickId,
+        teams: selectedTeams
+      }, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      console.log("Update picks response:", response.data);
       
       alert('Your picks have been updated!');
     } else {
-      // Create new pick for testing
-      const newPick = {
-        _id: "pick" + Date.now(),
-        day: currentDay,
-        date: new Date().toISOString(),
+      // Create new pick
+      const response = await axios.post(`${API_URL}/picks/submit`, {
         teams: selectedTeams,
-        userEmail: currentUser.email
-      };
+        day: currentDay
+      }, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      console.log("Submit picks response:", response.data);
       
-      previousPicks.push(newPick);
       alert('Your picks have been submitted!');
     }
     
@@ -475,14 +892,15 @@ async function handleSubmitPicks(e) {
     alerts.forEach(alert => alert.remove());
     
     // Reset submit button
-    submitPicksBtn.textContent = 'Submit Picks';
+    if (submitPicksBtn) {
+      submitPicksBtn.textContent = 'Submit Picks';
+    }
     
     // Refresh picks
-    renderPreviousPicks();
-    renderAvailableTeams();
+    fetchPreviousPicks();
     
   } catch (error) {
     console.error("Error submitting picks:", error);
-    alert('Failed to submit picks: ' + error.message);
+    alert('Failed to submit picks: ' + (error.response?.data?.message || error.message));
   }
 }
