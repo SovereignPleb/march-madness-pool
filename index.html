@@ -9,6 +9,7 @@
 </head>
 <body>
   <div class="container mt-5">
+    <!-- Login Form -->
     <div id="loginForm">
       <h2>March Madness Knockout Pool</h2>
       <form id="login">
@@ -22,9 +23,11 @@
         </div>
         <button type="submit" class="btn btn-primary">Login</button>
         <button type="button" class="btn btn-link" id="showRegister">Register</button>
+        <button type="button" class="btn btn-link text-danger" id="showAdminLogin">Admin Login</button>
       </form>
     </div>
     
+    <!-- Registration Form -->
     <div id="registerForm" style="display: none;">
       <h2>Register</h2>
       <form id="register">
@@ -41,6 +44,24 @@
       </form>
     </div>
     
+    <!-- Admin Login Form -->
+    <div id="adminLoginForm" style="display: none;">
+      <h2>Admin Login</h2>
+      <form id="adminLogin">
+        <div class="mb-3">
+          <label for="adminEmail" class="form-label">Admin Email</label>
+          <input type="email" class="form-control" id="adminEmail" required>
+        </div>
+        <div class="mb-3">
+          <label for="adminPassword" class="form-label">Admin Password</label>
+          <input type="password" class="form-control" id="adminPassword" required>
+        </div>
+        <button type="submit" class="btn btn-danger">Admin Login</button>
+        <button type="button" class="btn btn-link" id="backToLogin">Back to Login</button>
+      </form>
+    </div>
+    
+    <!-- Pick Teams Form -->
     <div id="pickForm" style="display: none;">
       <div class="d-flex justify-content-between align-items-center">
         <h2>Select Teams</h2>
@@ -66,8 +87,58 @@
       </form>
       
       <div class="mt-4">
-        <h4>Previous Picks</h4>
+        <h4>Your Previous Picks</h4>
         <div id="previousPicks"></div>
+      </div>
+      
+      <div class="mt-4 pt-3 border-top">
+        <a href="https://www.espn.com" target="_blank" class="text-decoration-none">Rules Here</a>
+      </div>
+    </div>
+    
+    <!-- Admin Dashboard -->
+    <div id="adminDashboard" style="display: none;">
+      <div class="d-flex justify-content-between align-items-center">
+        <h2>Admin Dashboard</h2>
+        <button id="adminLogout" class="btn btn-sm btn-outline-danger">Logout</button>
+      </div>
+      
+      <div class="mt-4">
+        <h4>All Users</h4>
+        <div id="usersList" class="mb-4"></div>
+      </div>
+      
+      <div class="mt-4">
+        <h4>All Picks</h4>
+        <div id="allPicks"></div>
+      </div>
+      
+      <div class="mt-4">
+        <h4>Pool Management</h4>
+        <div class="card">
+          <div class="card-body">
+            <div class="mb-3">
+              <label for="currentDaySelect" class="form-label">Current Day</label>
+              <select class="form-control" id="currentDaySelect">
+                <option value="Thursday">Thursday</option>
+                <option value="Friday">Friday</option>
+                <option value="Saturday">Saturday</option>
+                <option value="Sunday">Sunday</option>
+                <option value="Sweet16-1">Sweet 16 Day 1</option>
+                <option value="Sweet16-2">Sweet 16 Day 2</option>
+                <option value="Elite8-1">Elite 8 Day 1</option>
+                <option value="Elite8-2">Elite 8 Day 2</option>
+                <option value="FinalFour">Final Four</option>
+                <option value="Championship">Championship</option>
+              </select>
+            </div>
+            <div class="mb-3">
+              <label for="requiredPicksInput" class="form-label">Required Picks</label>
+              <input type="number" class="form-control" id="requiredPicksInput" min="1" max="6" value="2">
+            </div>
+            <button id="updatePoolSettings" class="btn btn-primary">Update Pool Settings</button>
+          </div>
+        </div>
       </div>
     </div>
   </div>
