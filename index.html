@@ -27,7 +27,6 @@
         </div>
         <button type="submit" class="btn btn-primary">Login</button>
         <button type="button" class="btn btn-link" id="showRegister">Register</button>
-        <!-- Admin Login button removed as requested -->
       </form>
     </div>
     
@@ -48,14 +47,18 @@
       </form>
     </div>
     
-    <!-- Admin Login Form removed as no longer needed -->
-    
     <!-- Pick Teams Form -->
     <div id="pickForm" style="display: none;">
       <div class="d-flex justify-content-between align-items-center">
         <h2>Select Teams</h2>
         <button id="logout" class="btn btn-sm btn-outline-danger">Logout</button>
       </div>
+      
+      <!-- Added user email display section -->
+      <div class="alert alert-secondary mb-3">
+        <strong>User:</strong> <span id="userEmail">Loading...</span>
+      </div>
+      
       <div class="alert alert-info">
         <span id="dayInfo">Current Day: Thursday</span><br>
         <span id="requiredInfo">Required Picks: 2</span>
@@ -90,6 +93,11 @@
       <div class="d-flex justify-content-between align-items-center">
         <h2>Admin Dashboard</h2>
         <button id="adminLogout" class="btn btn-sm btn-outline-danger">Logout</button>
+      </div>
+      
+      <!-- Added admin email display section -->
+      <div class="alert alert-secondary mb-3">
+        <strong>Admin User:</strong> <span id="adminEmail">Loading...</span>
       </div>
       
       <div class="mt-4">
