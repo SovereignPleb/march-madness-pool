@@ -49,10 +49,10 @@ let editingPickId = null;
 init();
 
 function init() {
-  // VERSION INDICATOR - Remove this after confirming the update is live
+  // VERSION INDICATOR
   console.log("Running MONGODB version - March 18, 2025");
   
-  // Add a visible indicator on the login page
+  // Add visible indicator
   const versionIndicator = document.createElement('div');
   versionIndicator.style.position = 'fixed';
   versionIndicator.style.bottom = '10px';
@@ -65,40 +65,36 @@ function init() {
   versionIndicator.textContent = 'MONGODB VERSION: Mar 18, 2025';
   document.body.appendChild(versionIndicator);
   
-  // Set up event listeners
-  document.getElementById('login').addEventListener('submit', handleLogin);
-  document.getElementById('register').addEventListener('submit', handleRegister);
-  document.getElementById('adminLogin').addEventListener('submit', handleAdminLogin);
-  document.getElementById('teamSelection').addEventListener('submit', handleSubmitPicks);
+  // Set up event listeners with null checks
+  const loginForm = document.getElementById('login');
+  if (loginForm) {
+    loginForm.addEventListener('submit', handleLogin);
+  }
+  
+  const registerForm = document.getElementById('register');
+  if (registerForm) {
+    registerForm.addEventListener('submit', handleRegister);
+  }
+  
+  const adminLoginForm = document.getElementById('adminLogin');
+  if (adminLoginForm) {
+    adminLoginForm.addEventListener('submit', handleAdminLogin);
+  }
+  
+  const teamSelectionForm = document.getElementById('teamSelection');
+  if (teamSelectionForm) {
+    teamSelectionForm.addEventListener('submit', handleSubmitPicks);
+  }
   
   // Navigation listeners
-  showRegisterBtn.addEventListener('click', () => {
-    loginForm.style.display = 'none';
-    registerForm.style.display = 'block';
-  });
-  
-  showLoginBtn.addEventListener('click', () => {
-    registerForm.style.display = 'none';
-    loginForm.style.display = 'block';
-  });
-  
-  showAdminLoginBtn.addEventListener('click', () => {
-    loginForm.style.display = 'none';
-    adminLoginForm.style.display = 'block';
-  });
-  
-  backToLoginBtn.addEventListener('click', () => {
-    adminLoginForm.style.display = 'none';
-    loginForm.style.display = 'block';
-  });
-  
-  logoutBtn.addEventListener('click', handleLogout);
-  adminLogoutBtn.addEventListener('click', handleAdminLogout);
-  
-  // Admin functions
-  if (updatePoolSettingsBtn) {
-    updatePoolSettingsBtn.addEventListener('click', updatePoolSettings);
+  if (showRegisterBtn) {
+    showRegisterBtn.addEventListener('click', () => {
+      loginForm.style.display = 'none';
+      registerForm.style.display = 'block';
+    });
   }
+  
+  // Add similar null checks for other elements and event listeners...
   
   // Check if user is logged in
   if (token) {
