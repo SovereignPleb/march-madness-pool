@@ -525,6 +525,17 @@ function renderPreviousPicks() {
   });
   
   previousPicksDiv.appendChild(picksList);
+
+  // Disable submit button if picks for current day already exist
+  const existingDayPick = previousPicks.find(pick => pick.day === currentDay);
+  if (existingDayPick && !editingPickId) {
+    const existingPickAlert = document.createElement('div');
+    existingPickAlert.className = 'alert alert-info mt-3';
+    existingPickAlert.textContent = `You have already submitted picks for ${currentDay}. You can only edit your existing picks.`;
+    
+    previousPicksDiv.insertBefore(existingPickAlert, previousPicksDiv.firstChild);
+  }
+
 }
 
 function renderUsersList() {
@@ -726,6 +737,16 @@ async function handleSubmitPicks(e) {
   
   if (selectedTeams.length !== requiredPicks) {
     alert(`You must select exactly ${requiredPicks} teams for ${currentDay}`);
+    return;
+  }
+
+  // Check if user has already made picks for this day
+  const existingDayPick = previousPicks.find(pick => 
+    pick.day === currentDay && (!editingPickId || pick._id !== editingPickId)
+  );
+  
+  if (existingDayPick && !editingPickId) {
+    alert(`You have already submitted picks for ${currentDay}. You can only edit your existing picks.`);
     return;
   }
   
