@@ -136,20 +136,31 @@ async function handleLogin(e) {
   const password = document.getElementById('password').value;
   
   try {
+    console.log("Attempting login for:", email);
     const response = await axios.post(`${API_URL}/login`, { email, password });
-    token = response.data.token;
-    localStorage.setItem('token', token);
-    currentUser = response.data.user;
-    isAdmin = response.data.user.isAdmin || false;
-    localStorage.setItem('isAdmin', isAdmin ? 'true' : 'false');
+    console.log("Login response:", response);
     
-    if (isAdmin) {
-      fetchAdminData();
+    if (response.data && response.data.token) {
+      token = response.data.token;
+      localStorage.setItem('token', token);
+      currentUser = response.data.user;
+      isAdmin = response.data.user && response.data.user.isAdmin || false;
+      localStorage.setItem('isAdmin', isAdmin ? 'true' : 'false');
+      
+      if (isAdmin) {
+        fetchAdminData();
+      } else {
+        showPicksInterface();
+      }
     } else {
-      showPicksInterface();
+      console.error("Login response missing token:", response.data);
+      alert('Login failed: Response missing authentication token');
     }
   } catch (error) {
-    alert('Login failed: ' + (error.response?.data?.message || 'Unknown error'));
+    console.error("Login error details:", error);
+    console.error("Response data:", error.response?.data);
+    console.error("Status code:", error.response?.status);
+    alert('Login failed: ' + (error.response?.data?.message || error.message || 'Unknown error'));
   }
 }
 
