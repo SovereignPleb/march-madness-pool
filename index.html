@@ -27,7 +27,7 @@
         </div>
         <button type="submit" class="btn btn-primary">Login</button>
         <button type="button" class="btn btn-link" id="showRegister">Register</button>
-        <button type="button" class="btn btn-link text-danger" id="showAdminLogin">Admin Login</button>
+        <!-- Admin Login button removed as requested -->
       </form>
     </div>
     
@@ -48,22 +48,7 @@
       </form>
     </div>
     
-    <!-- Admin Login Form -->
-    <div id="adminLoginForm" style="display: none;">
-      <h2>Admin Login</h2>
-      <form id="adminLogin">
-        <div class="mb-3">
-          <label for="adminEmail" class="form-label">Admin Email</label>
-          <input type="email" class="form-control" id="adminEmail" required>
-        </div>
-        <div class="mb-3">
-          <label for="adminPassword" class="form-label">Admin Password</label>
-          <input type="password" class="form-control" id="adminPassword" required>
-        </div>
-        <button type="submit" class="btn btn-danger">Admin Login</button>
-        <button type="button" class="btn btn-link" id="backToLogin">Back to Login</button>
-      </form>
-    </div>
+    <!-- Admin Login Form removed as no longer needed -->
     
     <!-- Pick Teams Form -->
     <div id="pickForm" style="display: none;">
@@ -158,7 +143,6 @@
       console.log("Login form exists:", !!document.getElementById('login'));
       console.log("Register form exists:", !!document.getElementById('register'));
       console.log("Team selection form exists:", !!document.getElementById('teamSelection'));
-      console.log("Admin login form exists:", !!document.getElementById('adminLogin'));
       console.log("Admin dashboard exists:", !!document.getElementById('adminDashboard'));
     });
   </script>
