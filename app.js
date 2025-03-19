@@ -49,10 +49,10 @@ let editingPickId = null;
 init();
 
 function init() {
-  // VERSION INDICATOR
+  // VERSION INDICATOR - Remove this after confirming the update is live
   console.log("Running MONGODB version - March 18, 2025");
   
-  // Add visible indicator
+  // Add a visible indicator on the login page
   const versionIndicator = document.createElement('div');
   versionIndicator.style.position = 'fixed';
   versionIndicator.style.bottom = '10px';
@@ -65,36 +65,56 @@ function init() {
   versionIndicator.textContent = 'MONGODB VERSION: Mar 18, 2025';
   document.body.appendChild(versionIndicator);
   
-  // Set up event listeners with null checks
-  const loginForm = document.getElementById('login');
-  if (loginForm) {
-    loginForm.addEventListener('submit', handleLogin);
+  // Set up event listeners with proper checks
+  const loginFormElement = document.getElementById('login');
+  if (loginFormElement) {
+    loginFormElement.addEventListener('submit', handleLogin);
+  } else {
+    console.error("Login form not found");
   }
   
-  const registerForm = document.getElementById('register');
-  if (registerForm) {
-    registerForm.addEventListener('submit', handleRegister);
+  const registerFormElement = document.getElementById('register');
+  if (registerFormElement) {
+    registerFormElement.addEventListener('submit', handleRegister);
   }
   
-  const adminLoginForm = document.getElementById('adminLogin');
-  if (adminLoginForm) {
-    adminLoginForm.addEventListener('submit', handleAdminLogin);
+  const adminLoginFormElement = document.getElementById('adminLogin');
+  if (adminLoginFormElement) {
+    adminLoginFormElement.addEventListener('submit', handleAdminLogin);
   }
   
-  const teamSelectionForm = document.getElementById('teamSelection');
-  if (teamSelectionForm) {
-    teamSelectionForm.addEventListener('submit', handleSubmitPicks);
+  const teamSelectionFormElement = document.getElementById('teamSelection');
+  if (teamSelectionFormElement) {
+    teamSelectionFormElement.addEventListener('submit', handleSubmitPicks);
   }
   
-  // Navigation listeners
+  // Other event listeners with checks
   if (showRegisterBtn) {
     showRegisterBtn.addEventListener('click', () => {
-      loginForm.style.display = 'none';
-      registerForm.style.display = 'block';
+      if (loginForm) loginForm.style.display = 'none';
+      if (registerForm) registerForm.style.display = 'block';
     });
   }
   
-  // Add similar null checks for other elements and event listeners...
+  if (showLoginBtn) {
+    showLoginBtn.addEventListener('click', () => {
+      if (registerForm) registerForm.style.display = 'none';
+      if (loginForm) loginForm.style.display = 'block';
+    });
+  }
+  
+  if (logoutBtn) {
+    logoutBtn.addEventListener('click', handleLogout);
+  }
+  
+  if (adminLogoutBtn) {
+    adminLogoutBtn.addEventListener('click', handleAdminLogout);
+  }
+  
+  // Admin functions
+  if (updatePoolSettingsBtn) {
+    updatePoolSettingsBtn.addEventListener('click', updatePoolSettings);
+  }
   
   // Check if user is logged in
   if (token) {
