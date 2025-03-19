@@ -237,15 +237,40 @@ async function fetchAdminData() {
 }
 
 function mockAdminData() {
-  // Mock users
-  allUsers = [
-    { email: 'user1@example.com', buybacks: 0, eliminated: false },
-    { email: 'user2@example.com', buybacks: 1, eliminated: false },
-    { email: 'admin@example.com', buybacks: 0, eliminated: false }
-  ];
+  // Get all picks from localStorage
+  let allPicks = [];
+  const allPicksKey = 'all_picks';
+  const storedAllPicks = localStorage.getItem(allPicksKey);
   
-  // Mock picks
-  allUserPicks = [
+  if (storedAllPicks) {
+    try {
+      allPicks = JSON.parse(storedAllPicks);
+    } catch (e) {
+      console.error('Error parsing stored picks:', e);
+    }
+  }
+  
+  // Extract unique users from picks
+  const userEmails = [...new Set(allPicks.map(pick => pick.userEmail))];
+  
+  // Generate user objects
+  allUsers = userEmails.map(email => ({
+    email: email,
+    buybacks: 0,
+    eliminated: false
+  }));
+  
+  // If no users found, add mock users
+  if (allUsers.length === 0) {
+    allUsers = [
+      { email: 'user1@example.com', buybacks: 0, eliminated: false },
+      { email: 'user2@example.com', buybacks: 1, eliminated: false },
+      { email: 'admin@example.com', buybacks: 0, eliminated: false }
+    ];
+  }
+  
+  // Use the existing picks or mock picks
+  allUserPicks = allPicks.length > 0 ? allPicks : [
     {
       userEmail: 'user1@example.com',
       day: 'Thursday',
@@ -328,10 +353,26 @@ async function fetchAvailableTeams() {
 
 async function fetchPreviousPicks() {
   try {
-    // In a real app, get this from your API
-    // For the MVP, we'll use local storage but with user-specific key
-    const storedPicks = localStorage.getItem(`picks_${currentUser.email}`);
-    previousPicks = storedPicks ? JSON.parse(storedPicks) : [];
+    // Get only this user's picks by filtering all picks from localStorage
+    let allStoredPicks = [];
+    
+    // Get picks from centralized storage
+    const allPicksKey = 'all_picks';
+    const storedAllPicks = localStorage.getItem(allPicksKey);
+    
+    if (storedAllPicks) {
+      try {
+        allStoredPicks = JSON.parse(storedAllPicks);
+      } catch (e) {
+        console.error('Error parsing stored picks:', e);
+        allStoredPicks = [];
+      }
+    }
+    
+    // Filter to only show current user's picks
+    previousPicks = allStoredPicks.filter(pick => 
+      pick.userEmail === currentUser.email
+    );
     
     // Add unique IDs to picks if they don't have them
     previousPicks = previousPicks.map(pick => {
@@ -340,6 +381,9 @@ async function fetchPreviousPicks() {
       }
       return pick;
     });
+    
+    // Sort picks by date
+    previousPicks.sort((a, b) => new Date(b.date) - new Date(a.date));
     
     renderPreviousPicks();
     fetchAvailableTeams();
@@ -656,25 +700,25 @@ function toggleTeamSelection(team) {
 
 // Edit picks
 function editPicks(pickId) {
-  editingPickId = pickId;
-  
   // Find the pick to edit
   const pickToEdit = previousPicks.find(pick => pick.id === pickId);
+  
   if (!pickToEdit) {
     alert('Could not find the selected pick.');
     return;
   }
   
-  // Set selected teams to the teams in this pick
-  selectedTeams = [...pickToEdit.teams];
+  // Verify ownership
+  if (pickToEdit.userEmail !== currentUser.email) {
+    alert('You can only edit your own picks!');
+    return;
+  }
   
-  // Update available teams
+  editingPickId = pickId;
+  selectedTeams = [...pickToEdit.teams];
   fetchAvailableTeams();
   
-  // Scroll to the top of the form
   window.scrollTo(0, 0);
-  
-  // Update UI to show editing mode
   submitPicksBtn.textContent = 'Update Picks';
   
   // Remove any existing editing alerts
@@ -717,16 +761,33 @@ async function handleSubmitPicks(e) {
   }
   
   try {
+    // Get all existing picks from localStorage
+    let allPicks = [];
+    const allPicksKey = 'all_picks';
+    const storedAllPicks = localStorage.getItem(allPicksKey);
+    
+    if (storedAllPicks) {
+      try {
+        allPicks = JSON.parse(storedAllPicks);
+      } catch (e) {
+        console.error('Error parsing stored picks:', e);
+        allPicks = [];
+      }
+    }
+    
     if (editingPickId) {
       // Update existing pick
-      const pickIndex = previousPicks.findIndex(pick => pick.id === editingPickId);
+      const pickIndex = allPicks.findIndex(pick => 
+        pick.id === editingPickId && pick.userEmail === currentUser.email
+      );
+      
       if (pickIndex > -1) {
-        previousPicks[pickIndex].teams = selectedTeams;
-        previousPicks[pickIndex].date = new Date().toISOString();
+        allPicks[pickIndex].teams = selectedTeams;
+        allPicks[pickIndex].date = new Date().toISOString();
+      } else {
+        alert('You can only edit your own picks!');
+        return;
       }
-      localStorage.setItem(`picks_${currentUser.email}`, JSON.stringify(previousPicks));
-      alert('Your picks have been updated!');
-      editingPickId = null;
     } else {
       // Create new pick
       const newPick = {
@@ -734,24 +795,26 @@ async function handleSubmitPicks(e) {
         day: currentDay,
         date: new Date().toISOString(),
         teams: selectedTeams,
-        userEmail: currentUser.email // Add user email to the pick object
+        userEmail: currentUser.email
       };
       
-      previousPicks.push(newPick);
-      localStorage.setItem(`picks_${currentUser.email}`, JSON.stringify(previousPicks));
-      alert('Your picks have been submitted!');
+      allPicks.push(newPick);
     }
     
-    selectedTeams = [];
-    renderPreviousPicks();
-    fetchAvailableTeams();
+    // Save all picks back to localStorage
+    localStorage.setItem(allPicksKey, JSON.stringify(allPicks));
     
-    // Remove any editing alert
+    // Refresh the user's picks
+    await fetchPreviousPicks();
+    
+    // UI updates
+    selectedTeams = [];
     const alerts = document.querySelectorAll('.alert-warning');
     alerts.forEach(alert => alert.remove());
-    
-    // Reset submit button
     submitPicksBtn.textContent = 'Submit Picks';
+    editingPickId = null;
+    
+    alert(editingPickId ? 'Your picks have been updated!' : 'Your picks have been submitted!');
   } catch (error) {
     alert('Failed to submit picks: ' + error.message);
   }
