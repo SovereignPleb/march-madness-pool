@@ -50,7 +50,7 @@ init();
 
 function init() {
   // VERSION INDICATOR - Remove this after confirming the update is live
-  console.log("Running MONGODB version - March 18, 2025");
+  console.log("Running MONGODB version - March 20, 2025");
   
   // Add a visible indicator on the login page
   const versionIndicator = document.createElement('div');
@@ -62,7 +62,7 @@ function init() {
   versionIndicator.style.padding = '5px 10px';
   versionIndicator.style.borderRadius = '4px';
   versionIndicator.style.fontSize = '12px';
-  versionIndicator.textContent = 'MONGODB VERSION: Mar 18, 2025';
+  versionIndicator.textContent = 'MONGODB VERSION: Mar 20, 2025';
   document.body.appendChild(versionIndicator);
   
   // Set up event listeners with proper checks
@@ -114,6 +114,11 @@ function init() {
   // Admin functions
   if (updatePoolSettingsBtn) {
     updatePoolSettingsBtn.addEventListener('click', updatePoolSettings);
+  }
+  
+  // Add event listener for day change in admin panel
+  if (currentDaySelect) {
+    currentDaySelect.addEventListener('change', handleDayChange);
   }
   
   // Check if user is logged in
@@ -219,6 +224,35 @@ function handleAdminLogout() {
   isAdmin = false;
   hideAllForms();
   loginForm.style.display = 'block';
+}
+
+// New function to handle day change in admin panel
+function handleDayChange(e) {
+  const newDay = e.target.value;
+  console.log(`Admin is changing day to: ${newDay}`);
+  
+  // Show a confirmation dialog
+  if (confirm(`Are you sure you want to change the current day to ${newDay}? This will update available teams for all users.`)) {
+    // The actual update will happen in updatePoolSettings()
+    // This is just to provide feedback about the change
+    const dayChangeAlert = document.createElement('div');
+    dayChangeAlert.className = 'alert alert-warning alert-dismissible fade show mt-3';
+    dayChangeAlert.innerHTML = `
+      <strong>Day Change Pending:</strong> Changing to ${newDay}. Click "Update Pool Settings" to confirm.
+      <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    `;
+    
+    // Add the alert before the settings form
+    const settingsForm = document.querySelector('.admin-settings');
+    if (settingsForm) {
+      settingsForm.insertBefore(dayChangeAlert, settingsForm.firstChild);
+    } else {
+      adminDashboard.insertBefore(dayChangeAlert, adminDashboard.firstChild);
+    }
+  } else {
+    // Reset to previous value if canceled
+    e.target.value = currentDay;
+  }
 }
 
 function hideAllForms() {
@@ -360,12 +394,48 @@ async function updatePoolSettings() {
       headers: { Authorization: `Bearer ${token}` }
     });
     
+    const dayChanged = currentDay !== newDay;
     currentDay = newDay;
     requiredPicks = newRequiredPicks;
     
+    // Refresh team data if day has changed
+    if (dayChanged) {
+      await refreshTeamsForNewDay(newDay);
+    }
+    
     alert('Pool settings updated successfully!');
+    
+    // Refresh admin data to show the updated information
+    fetchAdminData();
   } catch (error) {
     alert('Failed to update pool settings: ' + (error.response?.data?.message || error.message));
+  }
+}
+
+// New function to refresh teams for a new day
+async function refreshTeamsForNewDay(newDay) {
+  try {
+    console.log(`Refreshing teams for new day: ${newDay}`);
+    
+    // Call the API to refresh teams for the new day
+    const response = await axios.post(`${API_URL}/admin/refresh-teams`, {
+      day: newDay
+    }, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    
+    console.log('Teams refreshed successfully:', response.data);
+    
+    // Update local team data
+    if (response.data.teams) {
+      allTeams = response.data.teams;
+    }
+    
+    return true;
+  } catch (error) {
+    console.error('Error refreshing teams for new day:', error);
+    alert('Failed to refresh teams for the new day: ' + (error.response?.data?.message || error.message));
+    return false;
   }
 }
 
@@ -791,4 +861,3 @@ async function handleSubmitPicks(e) {
     alert('Failed to submit picks: ' + (error.response?.data?.message || error.message));
   }
 }
-  
