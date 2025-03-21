@@ -204,20 +204,32 @@ async function handleAdminLogin(e) {
   const password = document.getElementById('adminPassword').value;
   
   try {
+    console.log("Attempting admin login for:", email);
+    
     // In a real app, you'd have a separate admin login endpoint
     // For the MVP, we'll simulate by checking for an admin email
     if (email.includes('admin')) {
       const response = await axios.post(`${API_URL}/login`, { email, password });
-      token = response.data.token;
-      localStorage.setItem('token', token);
-      localStorage.setItem('isAdmin', 'true');
-      isAdmin = true;
-      fetchAdminData();
+      
+      if (response.data && response.data.token) {
+        token = response.data.token;
+        localStorage.setItem('token', token);
+        localStorage.setItem('isAdmin', 'true');
+        isAdmin = true;
+        
+        console.log("Admin login successful, token saved");
+        fetchAdminData();
+      } else {
+        console.error("Admin login response missing token:", response.data);
+        alert('Admin login failed: Response missing authentication token');
+      }
     } else {
       alert('Not an admin account');
     }
   } catch (error) {
-    alert('Admin login failed: ' + (error.response?.data?.message || 'Unknown error'));
+    console.error("Admin login error:", error);
+    console.error("Response data:", error.response?.data);
+    alert('Admin login failed: ' + (error.response?.data?.message || error.message || 'Unknown error'));
   }
 }
 
@@ -297,55 +309,90 @@ async function fetchAdminData() {
     hideAllForms();
     adminDashboard.style.display = 'block';
     
-    // Fetch all users
-    const usersResponse = await axios.get(`${API_URL}/admin/users`, {
-      headers: { Authorization: `Bearer ${token}` }
-    });
+    console.log("Fetching admin data with token:", token ? "Present" : "Missing");
     
-    allUsers = usersResponse.data.users || [];
-    renderUsersList();
+    // Fetch all users
+    try {
+      const usersResponse = await axios.get(`${API_URL}/admin/users`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      
+      allUsers = usersResponse.data.users || [];
+      renderUsersList();
+    } catch (error) {
+      console.error("Error fetching users:", error);
+      // Don't log out, just show an error
+      document.getElementById('usersList').innerHTML = '<div class="alert alert-danger">Error loading users data</div>';
+    }
     
     // Fetch all picks
-    const picksResponse = await axios.get(`${API_URL}/admin/picks`, {
-      headers: { Authorization: `Bearer ${token}` }
-    });
-    
-    allUserPicks = picksResponse.data.picks || [];
-    renderAllPicks();
+    try {
+      const picksResponse = await axios.get(`${API_URL}/admin/picks`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      
+      allUserPicks = picksResponse.data.picks || [];
+      renderAllPicks();
+    } catch (error) {
+      console.error("Error fetching picks:", error);
+      // Don't log out, just show an error
+      document.getElementById('allPicks').innerHTML = '<div class="alert alert-danger">Error loading picks data</div>';
+    }
     
     // Fetch pool settings
-    const settingsResponse = await axios.get(`${API_URL}/admin/settings`, {
-      headers: { Authorization: `Bearer ${token}` }
-    });
-    
-    if (settingsResponse.data) {
-      currentDay = settingsResponse.data.currentDay || 'Thursday';
-      requiredPicks = settingsResponse.data.requiredPicks || 2;
-      currentDaySelect.value = currentDay;
-      requiredPicksInput.value = requiredPicks;
+    try {
+      const settingsResponse = await axios.get(`${API_URL}/admin/settings`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      
+      if (settingsResponse.data) {
+        currentDay = settingsResponse.data.currentDay || 'Thursday';
+        requiredPicks = settingsResponse.data.requiredPicks || 2;
+        currentDaySelect.value = currentDay;
+        requiredPicksInput.value = requiredPicks;
+      }
+    } catch (error) {
+      console.error("Error fetching settings:", error);
+      // Don't log out, use defaults
+      currentDay = 'Thursday';
+      requiredPicks = 2;
     }
     
     // Fetch all teams for team options management
-    const teamsResponse = await axios.get(`${API_URL}/teams`, {
-      headers: { Authorization: `Bearer ${token}` }
-    });
-    
-    allTeams = teamsResponse.data.teams || [];
-    
-    // Check if team options management elements exist in the HTML
-    if (!document.getElementById('teamOptions')) {
-      // Create team options section if it doesn't exist
-      createTeamOptionsSection();
-    } else {
-      // Otherwise, just update the teams table
-      renderTeamsTable();
+    try {
+      const teamsResponse = await axios.get(`${API_URL}/teams`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      
+      allTeams = teamsResponse.data.teams || [];
+      
+      // Check if team options management elements exist in the HTML
+      if (!document.getElementById('teamOptions')) {
+        // Create team options section if it doesn't exist
+        createTeamOptionsSection();
+      } else {
+        // Otherwise, just update the teams table
+        renderTeamsTable();
+      }
+    } catch (error) {
+      console.error("Error fetching teams:", error);
+      // Don't log out, just show an error
+      const teamOptionsDiv = document.getElementById('teamOptions');
+      if (teamOptionsDiv) {
+        teamOptionsDiv.innerHTML = '<div class="alert alert-danger">Error loading teams data</div>';
+      }
     }
     
   } catch (error) {
-    console.error('Error fetching admin data:', error);
-    
-    // If there's an error (likely permissions), redirect to login
-    handleAdminLogout();
+    console.error('Error in fetchAdminData:', error);
+    // Only log out if it's an authorization error
+    if (error.response && error.response.status === 401) {
+      console.log("Logging out due to auth error");
+      handleAdminLogout();
+    } else {
+      // For other errors, just show a message
+      alert('There was an error loading the admin dashboard. Please try again.');
+    }
   }
 }
 
