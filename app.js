@@ -336,10 +336,10 @@ async function fetchAdminData() {
     if (!document.getElementById('teamOptions')) {
       // Create team options section if it doesn't exist
       createTeamOptionsSection();
+    } else {
+      // Otherwise, just update the teams table
+      renderTeamsTable();
     }
-    
-    // Render team options management interface
-    renderTeamOptionsManager();
     
   } catch (error) {
     console.error('Error fetching admin data:', error);
@@ -837,7 +837,32 @@ function createTeamOptionsSection() {
     </div>
     <div class="card-body">
       <div id="teamOptions" class="mb-3">
-        <!-- Team options table will be rendered here -->
+        <div class="alert alert-info">
+          <p>Select which teams should be available for each day.</p>
+        </div>
+        
+        <select id="daySelector" class="form-select mb-3">
+          <option value="Thursday">Thursday</option>
+          <option value="Friday">Friday</option>
+          <option value="Saturday" selected>Saturday</option>
+          <option value="Sunday">Sunday</option>
+          <option value="Sweet16-1">Sweet 16 (Day 1)</option>
+          <option value="Sweet16-2">Sweet 16 (Day 2)</option>
+          <option value="Elite8-1">Elite 8 (Day 1)</option>
+          <option value="Elite8-2">Elite 8 (Day 2)</option>
+          <option value="FinalFour">Final Four</option>
+          <option value="Championship">Championship</option>
+        </select>
+        
+        <div class="mb-3">
+          <button class="btn btn-sm btn-outline-primary me-2" onclick="selectAllTeams()">Select All</button>
+          <button class="btn btn-sm btn-outline-secondary me-2" onclick="deselectAllTeams()">Deselect All</button>
+          <button class="btn btn-sm btn-outline-info" onclick="toggleTopSeeds()">Toggle Seeds 1-4</button>
+        </div>
+        
+        <div id="teamsTableContainer">
+          <!-- Teams table will be dynamically inserted here -->
+        </div>
       </div>
       <button id="saveTeamOptions" class="btn btn-primary">Save Team Options</button>
     </div>
@@ -852,6 +877,18 @@ function createTeamOptionsSection() {
   
   // Add event listener for saving team options
   saveTeamOptionsBtn.addEventListener('click', saveTeamOptionsByDay);
+  
+  // Add event listener for day selector
+  const daySelector = document.getElementById('daySelector');
+  if (daySelector) {
+    daySelector.addEventListener('change', function() {
+      currentDay = this.value;
+      renderTeamsTable();
+    });
+  }
+  
+  // Initial render of the teams table
+  renderTeamsTable();
 }
 
 // Render the team options manager interface
