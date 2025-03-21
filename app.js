@@ -856,9 +856,18 @@ function createTeamOptionsSection() {
 
 // Render the team options manager interface
 function renderTeamOptionsManager() {
-  if (!teamOptionsDiv) return;
+  if (!teamOptionsDiv) {
+    console.error("Team options div not found");
+    return;
+  }
   
-  console.log("Rendering team options manager");
+  console.log("Rendering team options manager with", allTeams.length, "teams");
+  
+  // If no teams available yet, show a message
+  if (!allTeams || allTeams.length === 0) {
+    teamOptionsDiv.innerHTML = '<div class="alert alert-info">Loading teams data...</div>';
+    return;
+  }
   
   // Define tournament days
   const tournamentDays = [
@@ -867,82 +876,74 @@ function renderTeamOptionsManager() {
     'FinalFour', 'Championship'
   ];
   
-  // Create tabs for each day
-  const tabsNav = document.createElement('ul');
-  tabsNav.className = 'nav nav-tabs mb-3';
+  // Create direct HTML content instead of DOM manipulation
+  let html = `
+    <div class="mb-3">
+      <select id="daySelector" class="form-select mb-3">
+  `;
   
-  // Create tab content container
-  const tabContent = document.createElement('div');
-  tabContent.className = 'tab-content';
-  
-  // Create a tab and content pane for each tournament day
-  tournamentDays.forEach((day, index) => {
-    // Create tab
-    const tab = document.createElement('li');
-    tab.className = 'nav-item';
-    tab.innerHTML = `
-      <button class="nav-link ${index === 0 ? 'active' : ''}" 
-              id="tab-${day}" 
-              data-bs-toggle="tab" 
-              data-bs-target="#pane-${day}" 
-              type="button">
-        ${day}
-      </button>
-    `;
-    tabsNav.appendChild(tab);
-    
-    // Create tab content
-    const tabPane = document.createElement('div');
-    tabPane.className = `tab-pane fade ${index === 0 ? 'show active' : ''}`;
-    tabPane.id = `pane-${day}`;
-    
-    // Create team selection table
-    const teamTable = document.createElement('table');
-    teamTable.className = 'table table-sm';
-    teamTable.innerHTML = `
-      <thead>
-        <tr>
-          <th>Include</th>
-          <th>Seed</th>
-          <th>Team</th>
-          <th>Region</th>
-        </tr>
-      </thead>
-      <tbody>
-        ${allTeams.map(team => `
-          <tr>
-            <td>
-              <input type="checkbox" class="form-check-input" 
-                     data-team-id="${team._id}" 
-                     data-day="${day}" 
-                     ${team.availableDays && team.availableDays.includes(day) ? 'checked' : ''}>
-            </td>
-            <td>${team.seed}</td>
-            <td>${team.name}</td>
-            <td>${team.region}</td>
-          </tr>
-        `).join('')}
-      </tbody>
-    `;
-    
-    // Add quick selection buttons
-    const quickSelectDiv = document.createElement('div');
-    quickSelectDiv.className = 'mb-3';
-    quickSelectDiv.innerHTML = `
-      <button class="btn btn-sm btn-outline-primary me-2" onclick="selectAllTeams('${day}')">Select All</button>
-      <button class="btn btn-sm btn-outline-secondary me-2" onclick="deselectAllTeams('${day}')">Deselect All</button>
-      <button class="btn btn-sm btn-outline-info" onclick="toggleWinningTeams('${day}')">Toggle Seeds 1-4</button>
-    `;
-    
-    tabPane.appendChild(quickSelectDiv);
-    tabPane.appendChild(teamTable);
-    tabContent.appendChild(tabPane);
+  // Add options for each day
+  tournamentDays.forEach(day => {
+    html += `<option value="${day}" ${day === currentDay ? 'selected' : ''}>${day}</option>`;
   });
   
-  // Add tabs and content to the options div
-  teamOptionsDiv.innerHTML = '';
-  teamOptionsDiv.appendChild(tabsNav);
-  teamOptionsDiv.appendChild(tabContent);
+  html += `
+      </select>
+      
+      <div class="mb-3">
+        <button class="btn btn-sm btn-outline-primary me-2" onclick="selectAllTeams()">Select All</button>
+        <button class="btn btn-sm btn-outline-secondary me-2" onclick="deselectAllTeams()">Deselect All</button>
+        <button class="btn btn-sm btn-outline-info" onclick="toggleTopSeeds()">Toggle Seeds 1-4</button>
+      </div>
+      
+      <table class="table table-sm">
+        <thead>
+          <tr>
+            <th>Include</th>
+            <th>Seed</th>
+            <th>Team</th>
+            <th>Region</th>
+          </tr>
+        </thead>
+        <tbody>
+  `;
+  
+  // Add a row for each team
+  allTeams.forEach(team => {
+    // Check if this team is available for the current day
+    const isAvailable = team.availableDays && team.availableDays.includes(currentDay);
+    
+    html += `
+      <tr>
+        <td>
+          <input type="checkbox" class="form-check-input team-checkbox" 
+                 data-team-id="${team._id}" 
+                 ${isAvailable ? 'checked' : ''}>
+        </td>
+        <td>${team.seed}</td>
+        <td>${team.name}</td>
+        <td>${team.region}</td>
+      </tr>
+    `;
+  });
+  
+  html += `
+        </tbody>
+      </table>
+    </div>
+  `;
+  
+  // Set the HTML content
+  teamOptionsDiv.innerHTML = html;
+  
+  // Add event listener for day selector
+  const daySelector = document.getElementById('daySelector');
+  if (daySelector) {
+    daySelector.addEventListener('change', function() {
+      currentDay = this.value;
+      renderTeamOptionsManager();
+    });
+  }
 }
 
 // Handler for saving team options by day
