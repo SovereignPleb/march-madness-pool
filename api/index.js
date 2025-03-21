@@ -174,11 +174,21 @@ module.exports = async (req, res) => {
       try {
         verifyToken(req);
         
-        // Get all teams
-        const teams = await db.collection('teams').find({}).toArray();
+        // Get day parameter from URL if provided
+        const urlParams = new URLSearchParams(url.search);
+        const day = urlParams.get('day');
+        
+        // Create query based on day parameter
+        let query = {};
+        if (day) {
+          query.availableDays = day;
+        }
+        
+        // Get all teams matching the query
+        const teams = await db.collection('teams').find(query).toArray();
         
         // If no teams exist yet, create default teams
-        if (teams.length === 0) {
+        if (teams.length === 0 && !day) {
           const defaultTeams = [
             { name: 'Duke', seed: 1, region: 'East', record: '31-3' },
             { name: 'Alabama', seed: 2, region: 'East', record: '25-8' },
@@ -213,8 +223,18 @@ module.exports = async (req, res) => {
       try {
         const decoded = verifyToken(req);
         
-        // Get all teams
-        const allTeams = await db.collection('teams').find({}).toArray();
+        // Get day parameter from URL if provided
+        const urlParams = new URLSearchParams(url.search);
+        const day = urlParams.get('day');
+        
+        // Create query based on day parameter
+        let query = {};
+        if (day) {
+          query.availableDays = day;
+        }
+        
+        // Get all teams matching the day query
+        const allTeams = await db.collection('teams').find(query).toArray();
         
         // Get user's previous picks
         const userPicks = await db.collection('picks').find({
@@ -480,6 +500,54 @@ module.exports = async (req, res) => {
         return res.status(200).json({ message: 'Pool settings updated successfully' });
       } catch (error) {
         return res.status(401).json({ message: 'Unauthorized' });
+      }
+    }
+    
+    // Update team availability by day (admin only)
+    if (path === '/admin/team-availability' && req.method === 'POST') {
+      try {
+        const decoded = verifyToken(req);
+        
+        // Check if user is admin
+        const admin = await isAdmin(db, decoded.email);
+        if (!admin) {
+          return res.status(403).json({ message: 'Admin access required' });
+        }
+        
+        const { teamDayAvailability } = req.body;
+        
+        if (!teamDayAvailability) {
+          return res.status(400).json({ message: 'Invalid data format' });
+        }
+        
+        console.log('Updating team availability:', teamDayAvailability);
+        
+        // Get all teams
+        const allTeams = await db.collection('teams').find({}).toArray();
+        
+        // For each team, update its availableDays field
+        for (const team of allTeams) {
+          const teamId = team._id.toString();
+          team.availableDays = [];
+          
+          // Check each day to see if this team should be available
+          for (const day in teamDayAvailability) {
+            if (teamDayAvailability[day].includes(teamId)) {
+              team.availableDays.push(day);
+            }
+          }
+          
+          // Update this team in the database
+          await db.collection('teams').updateOne(
+            { _id: team._id },
+            { $set: { availableDays: team.availableDays } }
+          );
+        }
+        
+        return res.status(200).json({ message: 'Team availability updated successfully' });
+      } catch (error) {
+        console.error('Error updating team availability:', error);
+        return res.status(500).json({ message: 'Server error', error: error.message });
       }
     }
     
