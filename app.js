@@ -27,6 +27,8 @@ const allPicksDiv = document.getElementById('allPicks');
 const currentDaySelect = document.getElementById('currentDaySelect');
 const requiredPicksInput = document.getElementById('requiredPicksInput');
 const updatePoolSettingsBtn = document.getElementById('updatePoolSettings');
+const teamOptionsDiv = document.getElementById('teamOptions') || document.createElement('div');
+const saveTeamOptionsBtn = document.getElementById('saveTeamOptions') || document.createElement('button');
 
 // Base API URL - change this to your Vercel deployment URL
 const API_URL = window.location.origin + '/api';
@@ -120,6 +122,18 @@ function init() {
   if (currentDaySelect) {
     currentDaySelect.addEventListener('change', handleDayChange);
   }
+  
+  // Add global variables to window for debugging
+  window.app = {
+    allTeams,
+    availableTeams,
+    currentDay,
+    requiredPicks,
+    selectedTeams,
+    previousPicks,
+    allUsers,
+    allUserPicks
+  };
   
   // Check if user is logged in
   if (token) {
@@ -310,6 +324,23 @@ async function fetchAdminData() {
       currentDaySelect.value = currentDay;
       requiredPicksInput.value = requiredPicks;
     }
+    
+    // Fetch all teams for team options management
+    const teamsResponse = await axios.get(`${API_URL}/teams`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    
+    allTeams = teamsResponse.data.teams || [];
+    
+    // Check if team options management elements exist in the HTML
+    if (!document.getElementById('teamOptions')) {
+      // Create team options section if it doesn't exist
+      createTeamOptionsSection();
+    }
+    
+    // Render team options management interface
+    renderTeamOptionsManager();
+    
   } catch (error) {
     console.error('Error fetching admin data:', error);
     
@@ -321,11 +352,22 @@ async function fetchAdminData() {
 async function loadTeamsData() {
   try {
     if (token) {
-      const response = await axios.get(`${API_URL}/teams`, {
+      // Get the current day from the server to ensure we have the latest
+      const settingsResponse = await axios.get(`${API_URL}/admin/settings`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      
+      if (settingsResponse.data) {
+        currentDay = settingsResponse.data.currentDay || 'Thursday';
+      }
+      
+      // Request teams with the day parameter to get day-specific teams
+      const response = await axios.get(`${API_URL}/teams?day=${currentDay}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       
       allTeams = response.data.teams || [];
+      console.log(`Loaded ${allTeams.length} teams for ${currentDay}`);
       
       if (!isAdmin) {
         fetchAvailableTeams();
@@ -338,11 +380,13 @@ async function loadTeamsData() {
 
 async function fetchAvailableTeams() {
   try {
-    const response = await axios.get(`${API_URL}/teams/available`, {
+    // Request available teams with specific day parameter
+    const response = await axios.get(`${API_URL}/teams/available?day=${currentDay}`, {
       headers: { Authorization: `Bearer ${token}` }
     });
     
     availableTeams = response.data.teams || [];
+    console.log(`Fetched ${availableTeams.length} available teams for ${currentDay}`);
     
     // If editing, add back the teams from the current pick
     if (editingPickId) {
@@ -360,9 +404,27 @@ async function fetchAvailableTeams() {
       }
     }
     
+    // If no teams available for the current day, try without day parameter as fallback
+    if (availableTeams.length === 0) {
+      console.log(`No teams found for ${currentDay}, trying fallback...`);
+      const fallbackResponse = await axios.get(`${API_URL}/teams/available`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      
+      availableTeams = fallbackResponse.data.teams || [];
+      console.log(`Fallback: Fetched ${availableTeams.length} teams`);
+    }
+    
     renderAvailableTeams();
   } catch (error) {
     console.error('Error fetching available teams:', error);
+    
+    // If API fails, use allTeams as fallback
+    if (allTeams && allTeams.length > 0) {
+      console.log('Using allTeams as fallback for available teams');
+      availableTeams = [...allTeams];
+      renderAvailableTeams();
+    }
   }
 }
 
@@ -417,12 +479,30 @@ async function refreshTeamsForNewDay(newDay) {
   try {
     console.log(`Refreshing teams for new day: ${newDay}`);
     
-    // Call the API to refresh teams for the new day
-    const response = await axios.post(`${API_URL}/admin/refresh-teams`, {
-      day: newDay
-    }, {
-      headers: { Authorization: `Bearer ${token}` }
-    });
+    // First, check if the API endpoint exists
+    let response;
+    try {
+      // Call the API to refresh teams for the new day
+      response = await axios.post(`${API_URL}/admin/refresh-teams`, {
+        day: newDay
+      }, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+    } catch (apiError) {
+      console.warn('API endpoint /admin/refresh-teams not found, using fallback method:', apiError);
+      
+      // Fallback: Use the existing teams endpoint with a day parameter
+      response = await axios.get(`${API_URL}/teams?day=${newDay}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      
+      // Also update the available teams for all users
+      await axios.post(`${API_URL}/admin/update-day`, {
+        day: newDay
+      }, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+    }
     
     console.log('Teams refreshed successfully:', response.data);
     
@@ -733,6 +813,203 @@ function renderAllPicks() {
     document.body.appendChild(script);
   }
 }
+
+// Create the team options management section
+function createTeamOptionsSection() {
+  console.log("Creating team options section");
+  
+  // Find the admin settings section to append after
+  const adminSettingsSection = document.querySelector('.admin-settings') || 
+                              document.querySelector('.card') || 
+                              adminDashboard.firstElementChild;
+  
+  if (!adminSettingsSection) {
+    console.error("Could not find admin settings section");
+    return;
+  }
+  
+  // Create a new card for team options
+  const teamOptionsCard = document.createElement('div');
+  teamOptionsCard.className = 'card mt-4';
+  teamOptionsCard.innerHTML = `
+    <div class="card-header">
+      <h5>Team Options by Day</h5>
+    </div>
+    <div class="card-body">
+      <div id="teamOptions" class="mb-3">
+        <!-- Team options table will be rendered here -->
+      </div>
+      <button id="saveTeamOptions" class="btn btn-primary">Save Team Options</button>
+    </div>
+  `;
+  
+  // Insert after the admin settings section
+  adminSettingsSection.parentNode.insertBefore(teamOptionsCard, adminSettingsSection.nextSibling);
+  
+  // Update the global references
+  teamOptionsDiv = document.getElementById('teamOptions');
+  saveTeamOptionsBtn = document.getElementById('saveTeamOptions');
+  
+  // Add event listener for saving team options
+  saveTeamOptionsBtn.addEventListener('click', saveTeamOptionsByDay);
+}
+
+// Render the team options manager interface
+function renderTeamOptionsManager() {
+  if (!teamOptionsDiv) return;
+  
+  console.log("Rendering team options manager");
+  
+  // Define tournament days
+  const tournamentDays = [
+    'Thursday', 'Friday', 'Saturday', 'Sunday',
+    'Sweet16-1', 'Sweet16-2', 'Elite8-1', 'Elite8-2',
+    'FinalFour', 'Championship'
+  ];
+  
+  // Create tabs for each day
+  const tabsNav = document.createElement('ul');
+  tabsNav.className = 'nav nav-tabs mb-3';
+  
+  // Create tab content container
+  const tabContent = document.createElement('div');
+  tabContent.className = 'tab-content';
+  
+  // Create a tab and content pane for each tournament day
+  tournamentDays.forEach((day, index) => {
+    // Create tab
+    const tab = document.createElement('li');
+    tab.className = 'nav-item';
+    tab.innerHTML = `
+      <button class="nav-link ${index === 0 ? 'active' : ''}" 
+              id="tab-${day}" 
+              data-bs-toggle="tab" 
+              data-bs-target="#pane-${day}" 
+              type="button">
+        ${day}
+      </button>
+    `;
+    tabsNav.appendChild(tab);
+    
+    // Create tab content
+    const tabPane = document.createElement('div');
+    tabPane.className = `tab-pane fade ${index === 0 ? 'show active' : ''}`;
+    tabPane.id = `pane-${day}`;
+    
+    // Create team selection table
+    const teamTable = document.createElement('table');
+    teamTable.className = 'table table-sm';
+    teamTable.innerHTML = `
+      <thead>
+        <tr>
+          <th>Include</th>
+          <th>Seed</th>
+          <th>Team</th>
+          <th>Region</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${allTeams.map(team => `
+          <tr>
+            <td>
+              <input type="checkbox" class="form-check-input" 
+                     data-team-id="${team._id}" 
+                     data-day="${day}" 
+                     ${team.availableDays && team.availableDays.includes(day) ? 'checked' : ''}>
+            </td>
+            <td>${team.seed}</td>
+            <td>${team.name}</td>
+            <td>${team.region}</td>
+          </tr>
+        `).join('')}
+      </tbody>
+    `;
+    
+    // Add quick selection buttons
+    const quickSelectDiv = document.createElement('div');
+    quickSelectDiv.className = 'mb-3';
+    quickSelectDiv.innerHTML = `
+      <button class="btn btn-sm btn-outline-primary me-2" onclick="selectAllTeams('${day}')">Select All</button>
+      <button class="btn btn-sm btn-outline-secondary me-2" onclick="deselectAllTeams('${day}')">Deselect All</button>
+      <button class="btn btn-sm btn-outline-info" onclick="toggleWinningTeams('${day}')">Toggle Seeds 1-4</button>
+    `;
+    
+    tabPane.appendChild(quickSelectDiv);
+    tabPane.appendChild(teamTable);
+    tabContent.appendChild(tabPane);
+  });
+  
+  // Add tabs and content to the options div
+  teamOptionsDiv.innerHTML = '';
+  teamOptionsDiv.appendChild(tabsNav);
+  teamOptionsDiv.appendChild(tabContent);
+}
+
+// Handler for saving team options by day
+async function saveTeamOptionsByDay() {
+  try {
+    // Collect team day availability data
+    const teamDayAvailability = {};
+    
+    // For each day, collect all selected team IDs
+    const days = [
+      'Thursday', 'Friday', 'Saturday', 'Sunday',
+      'Sweet16-1', 'Sweet16-2', 'Elite8-1', 'Elite8-2',
+      'FinalFour', 'Championship'
+    ];
+    
+    days.forEach(day => {
+      const checkboxes = document.querySelectorAll(`input[data-day="${day}"]:checked`);
+      teamDayAvailability[day] = Array.from(checkboxes).map(cb => cb.dataset.teamId);
+    });
+    
+    console.log('Saving team day availability:', teamDayAvailability);
+    
+    // Send to the server
+    const response = await axios.post(`${API_URL}/admin/team-availability`, {
+      teamDayAvailability
+    }, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    
+    alert('Team options saved successfully!');
+    
+    // Refresh team data
+    loadTeamsData();
+    
+  } catch (error) {
+    console.error('Error saving team options:', error);
+    alert('Failed to save team options: ' + (error.response?.data?.message || error.message));
+  }
+}
+
+// Helper functions for team selection
+window.selectAllTeams = function(day) {
+  const checkboxes = document.querySelectorAll(`input[data-day="${day}"]`);
+  checkboxes.forEach(cb => cb.checked = true);
+};
+
+window.deselectAllTeams = function(day) {
+  const checkboxes = document.querySelectorAll(`input[data-day="${day}"]`);
+  checkboxes.forEach(cb => cb.checked = false);
+};
+
+window.toggleWinningTeams = function(day) {
+  // Select teams with seeds 1-4 (typically winners/favorites)
+  const rows = document.querySelectorAll(`#pane-${day} tbody tr`);
+  
+  rows.forEach(row => {
+    const seedCell = row.cells[1];
+    const checkbox = row.querySelector('input[type="checkbox"]');
+    
+    if (seedCell && checkbox) {
+      const seedNumber = parseInt(seedCell.textContent);
+      if (!isNaN(seedNumber) && seedNumber >= 1 && seedNumber <= 4) {
+        checkbox.checked = !checkbox.checked;
+      }
+    }
+  });
+};
 
 // Action handlers
 function toggleTeamSelection(team) {
